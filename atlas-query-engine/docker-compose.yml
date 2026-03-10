@@ -1,0 +1,39 @@
+services:
+  atlas-postgres:
+    image: postgres:16
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: atlas_query_engine
+      POSTGRES_USER: atlas
+      POSTGRES_PASSWORD: atlas
+    volumes:
+      - atlas_postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atlas -d atlas_query_engine"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  atlas-mysql:
+    image: mysql:8.4
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_DATABASE: atlas_aux
+      MYSQL_USER: atlas
+      MYSQL_PASSWORD: atlas
+      MYSQL_ROOT_PASSWORD: atlas_root
+    volumes:
+      - atlas_mysql_data:/var/lib/mysql
+      - ./docker/mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -hatlas-mysql -uatlas -patlas"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  atlas_postgres_data:
+  atlas_mysql_data:
