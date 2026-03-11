@@ -4,6 +4,8 @@ import br.com.lucast.atlas_query_engine.core.catalog.InMemoryDatasetCatalog;
 import br.com.lucast.atlas_query_engine.core.exception.DatasetNotFoundException;
 import br.com.lucast.atlas_query_engine.core.exception.FieldNotAllowedException;
 import br.com.lucast.atlas_query_engine.core.exception.InvalidQueryException;
+import br.com.lucast.atlas_query_engine.core.model.FilterGroupRequest;
+import br.com.lucast.atlas_query_engine.core.model.LogicalOperator;
 import br.com.lucast.atlas_query_engine.core.model.FilterOperator;
 import br.com.lucast.atlas_query_engine.core.model.FilterRequest;
 import br.com.lucast.atlas_query_engine.core.model.MetricOperation;
@@ -65,6 +67,30 @@ class QueryValidatorTest {
         request.setSelect(List.of("country", "customerName"));
         request.setMetrics(List.of(new MetricRequest("amount", MetricOperation.SUM, "revenue")));
         request.setGroupBy(List.of("country", "customerName"));
+
+        validator.validate(parser.parse(request));
+    }
+
+    @Test
+    void shouldValidateNestedFiltersAgainstRelatedDatasetDimensions() {
+        QueryRequest request = new QueryRequest();
+        request.setDataset("orders");
+        request.setSelect(List.of("country"));
+        request.setMetrics(List.of(new MetricRequest("amount", MetricOperation.SUM, "revenue")));
+        request.setGroupBy(List.of("country"));
+        request.setFilterTree(new FilterGroupRequest(
+                LogicalOperator.AND,
+                List.of(
+                        new FilterRequest("status", FilterOperator.EQUALS, "PAID"),
+                        new FilterGroupRequest(
+                                LogicalOperator.OR,
+                                List.of(
+                                        new FilterRequest("customerName", FilterOperator.LIKE, "Ana%"),
+                                        new FilterRequest("country", FilterOperator.EQUALS, "BR")
+                                )
+                        )
+                )
+        ));
 
         validator.validate(parser.parse(request));
     }

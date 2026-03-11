@@ -1,5 +1,7 @@
 package br.com.lucast.atlas_query_engine.core.parser;
 
+import br.com.lucast.atlas_query_engine.core.model.FilterGroupRequest;
+import br.com.lucast.atlas_query_engine.core.model.FilterNode;
 import br.com.lucast.atlas_query_engine.core.model.FilterRequest;
 import br.com.lucast.atlas_query_engine.core.model.MetricRequest;
 import br.com.lucast.atlas_query_engine.core.model.QueryRequest;
@@ -15,7 +17,7 @@ public class QueryParser {
         QueryRequest normalized = new QueryRequest();
         normalized.setDataset(trimToNull(request.getDataset()));
         normalized.setSelect(normalizeStrings(request.getSelect()));
-        normalized.setFilters(normalizeFilters(request.getFilters()));
+        normalized.setFilterTree(normalizeFilterNode(request.getFilterTree()));
         normalized.setMetrics(normalizeMetrics(request.getMetrics()));
         normalized.setGroupBy(normalizeStrings(request.getGroupBy()));
         normalized.setSort(normalizeSort(request.getSort()));
@@ -35,19 +37,25 @@ public class QueryParser {
         return normalized;
     }
 
-    private List<FilterRequest> normalizeFilters(List<FilterRequest> filters) {
-        List<FilterRequest> normalized = new ArrayList<>();
-        if (filters == null) {
-            return normalized;
+    private FilterNode normalizeFilterNode(FilterNode filterNode) {
+        if (filterNode == null) {
+            return FilterGroupRequest.empty();
         }
-        for (FilterRequest filter : filters) {
-            normalized.add(new FilterRequest(
+        if (filterNode instanceof FilterRequest filter) {
+            return new FilterRequest(
                     trimToNull(filter.getField()),
                     filter.getOperator(),
                     filter.getValue()
-            ));
+            );
         }
-        return normalized;
+        if (filterNode instanceof FilterGroupRequest group) {
+            List<FilterNode> normalizedConditions = new ArrayList<>();
+            for (FilterNode condition : group.getConditions()) {
+                normalizedConditions.add(normalizeFilterNode(condition));
+            }
+            return new FilterGroupRequest(group.getOperator(), normalizedConditions);
+        }
+        return FilterGroupRequest.empty();
     }
 
     private List<MetricRequest> normalizeMetrics(List<MetricRequest> metrics) {

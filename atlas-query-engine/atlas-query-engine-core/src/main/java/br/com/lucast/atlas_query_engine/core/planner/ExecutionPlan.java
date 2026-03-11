@@ -4,6 +4,7 @@ import br.com.lucast.atlas_query_engine.core.catalog.DatasetDefinition;
 import br.com.lucast.atlas_query_engine.core.catalog.DimensionDefinition;
 import br.com.lucast.atlas_query_engine.core.catalog.JoinType;
 import br.com.lucast.atlas_query_engine.core.catalog.MetricDefinition;
+import br.com.lucast.atlas_query_engine.core.model.LogicalOperator;
 import br.com.lucast.atlas_query_engine.core.model.FilterRequest;
 import br.com.lucast.atlas_query_engine.core.model.MetricRequest;
 import br.com.lucast.atlas_query_engine.core.model.QueryRequest;
@@ -20,7 +21,7 @@ public class ExecutionPlan {
     private final DatasetDefinition dataset;
     private final String baseAlias;
     private final List<DimensionBinding> selectedDimensions;
-    private final List<FilterBinding> filters;
+    private final FilterBindingNode filterTree;
     private final List<MetricBinding> metrics;
     private final List<DimensionBinding> groupByDimensions;
     private final List<SortBinding> sortBindings;
@@ -35,7 +36,13 @@ public class ExecutionPlan {
         }
     }
 
-    public record FilterBinding(FilterRequest request, DimensionBinding dimensionBinding) {
+    public sealed interface FilterBindingNode permits FilterBinding, FilterGroupBinding {
+    }
+
+    public record FilterBinding(FilterRequest request, DimensionBinding dimensionBinding) implements FilterBindingNode {
+    }
+
+    public record FilterGroupBinding(LogicalOperator operator, List<FilterBindingNode> conditions) implements FilterBindingNode {
     }
 
     public record MetricBinding(MetricRequest request, MetricDefinition metricDefinition, String tableAlias) {

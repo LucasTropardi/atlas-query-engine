@@ -11,7 +11,7 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-public class FilterRequest {
+public class FilterRequest implements FilterNode {
 
     @NotBlank
     private String field;

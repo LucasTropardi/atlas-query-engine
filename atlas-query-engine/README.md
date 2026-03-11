@@ -60,16 +60,25 @@ Payload de exemplo:
 ```json
 {
   "dataset": "orders",
-  "select": ["country", "status"],
-  "filters": [
-    { "field": "status", "operator": "=", "value": "PAID" },
-    { "field": "createdAt", "operator": ">=", "value": "2026-01-01" }
-  ],
+  "select": ["country"],
+  "filters": {
+    "operator": "AND",
+    "conditions": [
+      { "field": "status", "operator": "=", "value": "PAID" },
+      {
+        "operator": "OR",
+        "conditions": [
+          { "field": "country", "operator": "=", "value": "BR" },
+          { "field": "country", "operator": "=", "value": "US" }
+        ]
+      }
+    ]
+  },
   "metrics": [
     { "field": "id", "operation": "count", "alias": "ordersCount" },
     { "field": "amount", "operation": "sum", "alias": "totalAmount" }
   ],
-  "groupBy": ["country", "status"],
+  "groupBy": ["country"],
   "sort": [
     { "field": "totalAmount", "direction": "desc" }
   ],
@@ -77,3 +86,5 @@ Payload de exemplo:
   "pageSize": 50
 }
 ```
+
+O formato legado continua aceitando `filters` como lista simples. Internamente ele e normalizado para um grupo `AND`.

@@ -23,9 +23,10 @@ public class SqlTranslator {
                 .map(this::buildJoinClause)
                 .forEach(builder::addJoin);
 
-        plan.getFilters().stream()
-                .map(filter -> buildFilterClause(filter, parameters))
-                .forEach(builder::addWhere);
+        String whereClause = buildFilterClause(plan.getFilterTree(), parameters, false);
+        if (whereClause != null && !whereClause.isBlank()) {
+            builder.addWhere(whereClause);
+        }
 
         if (!plan.getMetrics().isEmpty() && !plan.getGroupByDimensions().isEmpty()) {
             plan.getGroupByDimensions().stream()
@@ -53,7 +54,25 @@ public class SqlTranslator {
         return clauses;
     }
 
-    private String buildFilterClause(ExecutionPlan.FilterBinding filterBinding, List<Object> parameters) {
+    private String buildFilterClause(ExecutionPlan.FilterBindingNode filterBinding, List<Object> parameters, boolean nested) {
+        if (filterBinding instanceof ExecutionPlan.FilterBinding simpleFilter) {
+            return buildSimpleFilterClause(simpleFilter, parameters);
+        }
+        if (filterBinding instanceof ExecutionPlan.FilterGroupBinding groupBinding) {
+            List<String> clauses = groupBinding.conditions().stream()
+                    .map(condition -> buildFilterClause(condition, parameters, true))
+                    .filter(clause -> clause != null && !clause.isBlank())
+                    .toList();
+            if (clauses.isEmpty()) {
+                return null;
+            }
+            String combined = String.join(" " + groupBinding.operator().name() + " ", clauses);
+            return nested ? "(" + combined + ")" : combined;
+        }
+        return null;
+    }
+
+    private String buildSimpleFilterClause(ExecutionPlan.FilterBinding filterBinding, List<Object> parameters) {
         String column = filterBinding.dimensionBinding().qualifiedColumn();
         Object value = filterBinding.request().getValue();
         FilterOperator operator = filterBinding.request().getOperator();

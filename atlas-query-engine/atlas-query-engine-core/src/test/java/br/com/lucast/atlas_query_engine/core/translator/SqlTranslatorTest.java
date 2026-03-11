@@ -2,8 +2,10 @@ package br.com.lucast.atlas_query_engine.core.translator;
 
 import br.com.lucast.atlas_query_engine.core.catalog.InMemoryDatasetCatalog;
 import br.com.lucast.atlas_query_engine.core.exception.InvalidQueryException;
+import br.com.lucast.atlas_query_engine.core.model.FilterGroupRequest;
 import br.com.lucast.atlas_query_engine.core.model.FilterOperator;
 import br.com.lucast.atlas_query_engine.core.model.FilterRequest;
+import br.com.lucast.atlas_query_engine.core.model.LogicalOperator;
 import br.com.lucast.atlas_query_engine.core.model.MetricOperation;
 import br.com.lucast.atlas_query_engine.core.model.MetricRequest;
 import br.com.lucast.atlas_query_engine.core.model.QueryRequest;
@@ -118,6 +120,139 @@ class SqlTranslatorTest {
     }
 
     @Test
+    void shouldTranslateSimpleOrGroupWithParentheses() {
+        QueryRequest request = baseRequestWithFilterTree(new FilterGroupRequest(
+                LogicalOperator.OR,
+                List.of(
+                        new FilterRequest("country", FilterOperator.EQUALS, "BR"),
+                        new FilterRequest("country", FilterOperator.EQUALS, "US")
+                )
+        ));
+
+        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)));
+
+        assertThat(sqlQuery.getSql()).contains("WHERE t0.country = ? OR t0.country = ?");
+        assertThat(sqlQuery.getParameters()).containsExactly("BR", "US");
+    }
+
+    @Test
+    void shouldTranslateNestedMixedLogicalGroupsPreservingPrecedence() {
+        QueryRequest request = baseRequestWithFilterTree(new FilterGroupRequest(
+                LogicalOperator.AND,
+                List.of(
+                        new FilterRequest("status", FilterOperator.EQUALS, "PAID"),
+                        new FilterGroupRequest(
+                                LogicalOperator.OR,
+                                List.of(
+                                        new FilterRequest("country", FilterOperator.EQUALS, "BR"),
+                                        new FilterRequest("country", FilterOperator.EQUALS, "US")
+                                )
+                        )
+                )
+        ));
+
+        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)));
+
+        assertThat(sqlQuery.getSql()).contains("WHERE t0.status = ? AND (t0.country = ? OR t0.country = ?)");
+        assertThat(sqlQuery.getParameters()).containsExactly("PAID", "BR", "US");
+    }
+
+    @Test
+    void shouldTranslateBetweenInsideLogicalGroup() {
+        QueryRequest request = baseRequestWithFilterTree(new FilterGroupRequest(
+                LogicalOperator.AND,
+                List.of(
+                        new FilterRequest("status", FilterOperator.EQUALS, "PAID"),
+                        new FilterGroupRequest(
+                                LogicalOperator.OR,
+                                List.of(
+                                        new FilterRequest("createdAt", FilterOperator.BETWEEN, List.of("2026-01-01", "2026-01-31")),
+                                        new FilterRequest("country", FilterOperator.EQUALS, "BR")
+                                )
+                        )
+                )
+        ));
+
+        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)));
+
+        assertThat(sqlQuery.getSql()).contains("WHERE t0.status = ? AND (t0.created_at BETWEEN ? AND ? OR t0.country = ?)");
+        assertThat(sqlQuery.getParameters()).containsExactly(
+                "PAID",
+                LocalDate.parse("2026-01-01"),
+                LocalDate.parse("2026-01-31"),
+                "BR"
+        );
+    }
+
+    @Test
+    void shouldTranslateInInsideLogicalGroup() {
+        QueryRequest request = baseRequestWithFilterTree(new FilterGroupRequest(
+                LogicalOperator.AND,
+                List.of(
+                        new FilterRequest("status", FilterOperator.IN, List.of("PAID", "PENDING")),
+                        new FilterRequest("country", FilterOperator.EQUALS, "BR")
+                )
+        ));
+
+        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)));
+
+        assertThat(sqlQuery.getSql()).contains("WHERE t0.status IN (?, ?) AND t0.country = ?");
+        assertThat(sqlQuery.getParameters()).containsExactly("PAID", "PENDING", "BR");
+    }
+
+    @Test
+    void shouldKeepNestedLogicalFiltersParameterizedForSuspiciousValues() {
+        QueryRequest request = baseRequestWithFilterTree(new FilterGroupRequest(
+                LogicalOperator.OR,
+                List.of(
+                        new FilterRequest("status", FilterOperator.EQUALS, "abc' OR 1=1 --"),
+                        new FilterRequest("country", FilterOperator.LIKE, "%US%' OR 1=1 --%")
+                )
+        ));
+
+        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)));
+
+        assertThat(sqlQuery.getSql()).contains("status = ? OR t0.country LIKE ?");
+        assertThat(sqlQuery.getSql()).doesNotContain("abc' OR 1=1 --");
+        assertThat(sqlQuery.getParameters()).containsExactly("abc' OR 1=1 --", "%US%' OR 1=1 --%");
+    }
+
+    @Test
+    void shouldKeepParameterOrderAcrossNestedGroups() {
+        QueryRequest request = baseRequestWithFilterTree(new FilterGroupRequest(
+                LogicalOperator.AND,
+                List.of(
+                        new FilterRequest("status", FilterOperator.EQUALS, "PAID"),
+                        new FilterGroupRequest(
+                                LogicalOperator.OR,
+                                List.of(
+                                        new FilterRequest("country", FilterOperator.IN, List.of("BR", "US")),
+                                        new FilterRequest("createdAt", FilterOperator.BETWEEN, List.of("2026-01-01", "2026-01-31"))
+                                )
+                        ),
+                        new FilterRequest("customerName", FilterOperator.LIKE, "Ana%")
+                )
+        ));
+
+        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)));
+
+        assertThat(sqlQuery.getSql()).isEqualTo(
+                "SELECT t0.country AS \"country\", COUNT(t0.id) AS \"orders\" FROM public.orders t0 "
+                        + "LEFT JOIN public.customers t1 ON t0.customer_id = t1.id "
+                        + "WHERE t0.status = ? AND (t0.country IN (?, ?) OR t0.created_at BETWEEN ? AND ?) AND t1.name LIKE ? "
+                        + "GROUP BY t0.country ORDER BY \"orders\" DESC LIMIT 50 OFFSET 0"
+        );
+        assertThat(sqlQuery.getParameters()).containsExactly(
+                "PAID",
+                "BR",
+                "US",
+                LocalDate.parse("2026-01-01"),
+                LocalDate.parse("2026-01-31"),
+                "Ana%"
+        );
+    }
+
+    @Test
     void shouldGenerateJoinForRelatedDatasetDimension() {
         QueryRequest request = new QueryRequest();
         request.setDataset("orders");
@@ -141,6 +276,19 @@ class SqlTranslatorTest {
         request.setDataset("orders");
         request.setSelect(List.of("country"));
         request.setFilters(List.of(filter));
+        request.setMetrics(List.of(new MetricRequest("id", MetricOperation.COUNT, "orders")));
+        request.setGroupBy(List.of("country"));
+        request.setSort(List.of(new SortRequest("orders", SortDirection.DESC)));
+        request.setPage(1);
+        request.setPageSize(50);
+        return request;
+    }
+
+    private QueryRequest baseRequestWithFilterTree(FilterGroupRequest filterTree) {
+        QueryRequest request = new QueryRequest();
+        request.setDataset("orders");
+        request.setSelect(List.of("country"));
+        request.setFilterTree(filterTree);
         request.setMetrics(List.of(new MetricRequest("id", MetricOperation.COUNT, "orders")));
         request.setGroupBy(List.of("country"));
         request.setSort(List.of(new SortRequest("orders", SortDirection.DESC)));

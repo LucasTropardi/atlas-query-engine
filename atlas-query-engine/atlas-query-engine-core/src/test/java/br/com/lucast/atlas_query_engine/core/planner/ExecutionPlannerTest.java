@@ -2,6 +2,10 @@ package br.com.lucast.atlas_query_engine.core.planner;
 
 import br.com.lucast.atlas_query_engine.core.catalog.InMemoryDatasetCatalog;
 import br.com.lucast.atlas_query_engine.core.catalog.JoinType;
+import br.com.lucast.atlas_query_engine.core.model.FilterGroupRequest;
+import br.com.lucast.atlas_query_engine.core.model.FilterOperator;
+import br.com.lucast.atlas_query_engine.core.model.FilterRequest;
+import br.com.lucast.atlas_query_engine.core.model.LogicalOperator;
 import br.com.lucast.atlas_query_engine.core.model.MetricOperation;
 import br.com.lucast.atlas_query_engine.core.model.MetricRequest;
 import br.com.lucast.atlas_query_engine.core.model.QueryRequest;
@@ -35,5 +39,32 @@ class ExecutionPlannerTest {
         assertThat(join.sourceColumn()).isEqualTo("customer_id");
         assertThat(join.targetColumn()).isEqualTo("id");
         assertThat(join.targetTable()).isEqualTo("public.customers");
+    }
+
+    @Test
+    void shouldRegisterJoinBindingForRelatedDimensionInsideNestedFilterGroup() {
+        QueryRequest request = new QueryRequest();
+        request.setDataset("orders");
+        request.setSelect(List.of("country"));
+        request.setMetrics(List.of(new MetricRequest("amount", MetricOperation.SUM, "revenue")));
+        request.setGroupBy(List.of("country"));
+        request.setFilterTree(new FilterGroupRequest(
+                LogicalOperator.AND,
+                List.of(
+                        new FilterRequest("status", FilterOperator.EQUALS, "PAID"),
+                        new FilterGroupRequest(
+                                LogicalOperator.OR,
+                                List.of(
+                                        new FilterRequest("customerName", FilterOperator.LIKE, "Ana%"),
+                                        new FilterRequest("country", FilterOperator.EQUALS, "BR")
+                                )
+                        )
+                )
+        ));
+
+        ExecutionPlan plan = planner.plan(parser.parse(request));
+
+        assertThat(plan.getJoins()).hasSize(1);
+        assertThat(plan.getFilterTree()).isInstanceOf(ExecutionPlan.FilterGroupBinding.class);
     }
 }

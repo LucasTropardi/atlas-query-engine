@@ -7,6 +7,8 @@ import br.com.lucast.atlas_query_engine.core.catalog.MetricDefinition;
 import br.com.lucast.atlas_query_engine.core.exception.DatasetNotFoundException;
 import br.com.lucast.atlas_query_engine.core.exception.FieldNotAllowedException;
 import br.com.lucast.atlas_query_engine.core.exception.InvalidQueryException;
+import br.com.lucast.atlas_query_engine.core.model.FilterGroupRequest;
+import br.com.lucast.atlas_query_engine.core.model.FilterNode;
 import br.com.lucast.atlas_query_engine.core.model.FilterOperator;
 import br.com.lucast.atlas_query_engine.core.model.FilterRequest;
 import br.com.lucast.atlas_query_engine.core.model.MetricRequest;
@@ -74,13 +76,23 @@ public class QueryValidator {
     }
 
     private void validateFilters(DatasetDefinition dataset, QueryRequest request) {
-        for (FilterRequest filter : request.getFilters()) {
+        validateFilterNode(dataset, request.getFilterTree());
+    }
+
+    private void validateFilterNode(DatasetDefinition dataset, FilterNode filterNode) {
+        if (filterNode instanceof FilterRequest filter) {
             DimensionDefinition dimension = dataset.findDimension(filter.getField())
                     .orElseThrow(() -> new FieldNotAllowedException("Filter field does not exist: " + filter.getField()));
             if (!dimension.isFilterable()) {
                 throw new FieldNotAllowedException("Field is not filterable: " + filter.getField());
             }
             validateFilterValue(filter);
+            return;
+        }
+        if (filterNode instanceof FilterGroupRequest group) {
+            for (FilterNode condition : group.getConditions()) {
+                validateFilterNode(dataset, condition);
+            }
         }
     }
 

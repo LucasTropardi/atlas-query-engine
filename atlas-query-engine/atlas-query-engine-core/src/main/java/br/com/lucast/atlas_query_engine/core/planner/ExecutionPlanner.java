@@ -6,6 +6,8 @@ import br.com.lucast.atlas_query_engine.core.catalog.DatasetDefinition;
 import br.com.lucast.atlas_query_engine.core.catalog.DimensionDefinition;
 import br.com.lucast.atlas_query_engine.core.catalog.MetricDefinition;
 import br.com.lucast.atlas_query_engine.core.exception.InvalidQueryException;
+import br.com.lucast.atlas_query_engine.core.model.FilterGroupRequest;
+import br.com.lucast.atlas_query_engine.core.model.FilterNode;
 import br.com.lucast.atlas_query_engine.core.model.FilterRequest;
 import br.com.lucast.atlas_query_engine.core.model.MetricRequest;
 import br.com.lucast.atlas_query_engine.core.model.QueryRequest;
@@ -35,12 +37,8 @@ public class ExecutionPlanner {
                 .map(field -> bindDimension(dataset, dataset.findDimension(field).orElseThrow(), baseAlias, joinsByRelation))
                 .toList();
 
-        List<ExecutionPlan.FilterBinding> filters = new ArrayList<>();
-        for (FilterRequest filter : request.getFilters()) {
-            ExecutionPlan.DimensionBinding dimensionBinding =
-                    bindDimension(dataset, dataset.findDimension(filter.getField()).orElseThrow(), baseAlias, joinsByRelation);
-            filters.add(new ExecutionPlan.FilterBinding(filter, dimensionBinding));
-        }
+        ExecutionPlan.FilterBindingNode filterTree =
+                bindFilterNode(dataset, request.getFilterTree(), baseAlias, joinsByRelation);
 
         List<ExecutionPlan.MetricBinding> metrics = new ArrayList<>();
         for (MetricRequest metric : request.getMetrics()) {
@@ -73,7 +71,7 @@ public class ExecutionPlanner {
                 dataset,
                 baseAlias,
                 selectedDimensions,
-                filters,
+                filterTree,
                 metrics,
                 groupByDimensions,
                 sortBindings,
@@ -124,5 +122,26 @@ public class ExecutionPlanner {
         );
         joinsByRelation.put(relationName, joinBinding);
         return targetAlias;
+    }
+
+    private ExecutionPlan.FilterBindingNode bindFilterNode(
+            DatasetDefinition dataset,
+            FilterNode filterNode,
+            String baseAlias,
+            Map<String, ExecutionPlan.JoinBinding> joinsByRelation
+    ) {
+        if (filterNode instanceof FilterRequest filter) {
+            ExecutionPlan.DimensionBinding dimensionBinding =
+                    bindDimension(dataset, dataset.findDimension(filter.getField()).orElseThrow(), baseAlias, joinsByRelation);
+            return new ExecutionPlan.FilterBinding(filter, dimensionBinding);
+        }
+        if (filterNode instanceof FilterGroupRequest group) {
+            List<ExecutionPlan.FilterBindingNode> conditions = new ArrayList<>();
+            for (FilterNode condition : group.getConditions()) {
+                conditions.add(bindFilterNode(dataset, condition, baseAlias, joinsByRelation));
+            }
+            return new ExecutionPlan.FilterGroupBinding(group.getOperator(), conditions);
+        }
+        throw new InvalidQueryException("Unsupported filter node");
     }
 }
