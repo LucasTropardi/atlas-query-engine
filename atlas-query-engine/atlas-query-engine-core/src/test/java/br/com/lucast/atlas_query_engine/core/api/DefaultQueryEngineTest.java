@@ -13,7 +13,9 @@ import br.com.lucast.atlas_query_engine.core.parser.QueryParser;
 import br.com.lucast.atlas_query_engine.core.planner.ExecutionPlanner;
 import br.com.lucast.atlas_query_engine.core.result.QueryMetadata;
 import br.com.lucast.atlas_query_engine.core.result.QueryResult;
+import br.com.lucast.atlas_query_engine.core.translator.PostgresSqlDialect;
 import br.com.lucast.atlas_query_engine.core.translator.SqlQuery;
+import br.com.lucast.atlas_query_engine.core.translator.StaticSqlDialectResolver;
 import br.com.lucast.atlas_query_engine.core.translator.SqlTranslator;
 import br.com.lucast.atlas_query_engine.core.validator.QueryValidator;
 import jakarta.validation.Validation;
@@ -32,6 +34,7 @@ class DefaultQueryEngineTest {
                 new QueryValidator(new InMemoryDatasetCatalog(), Validation.buildDefaultValidatorFactory().getValidator()),
                 new ExecutionPlanner(new InMemoryDatasetCatalog()),
                 new SqlTranslator(),
+                new StaticSqlDialectResolver(new PostgresSqlDialect()),
                 executor
         );
 

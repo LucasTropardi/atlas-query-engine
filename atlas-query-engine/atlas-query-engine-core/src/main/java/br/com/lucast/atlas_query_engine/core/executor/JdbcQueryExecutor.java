@@ -26,7 +26,7 @@ public class JdbcQueryExecutor implements QueryExecutor {
     @Override
     public QueryResult execute(QueryRequest request, SqlQuery sqlQuery) {
         long startTime = System.nanoTime();
-        LOGGER.info("Executing JDBC query for dataset={}", request.getDataset());
+        LOGGER.info("Executing JDBC query for target={}", request.getTargetName());
         LOGGER.debug("Generated SQL: {}", sqlQuery.getSql());
         LOGGER.debug("SQL params: {}", sqlQuery.getParameters());
         LOGGER.debug("Rendered SQL (debug only): {}", renderSqlWithParams(sqlQuery.getSql(), sqlQuery.getParameters()));
@@ -56,7 +56,7 @@ public class JdbcQueryExecutor implements QueryExecutor {
 
             long executionTimeMs = (System.nanoTime() - startTime) / 1_000_000;
             QueryMetadata metadata = new QueryMetadata(
-                    request.getDataset(),
+                    request.getTargetName(),
                     executionTimeMs,
                     request.getPage(),
                     request.getPageSize(),
@@ -66,7 +66,7 @@ public class JdbcQueryExecutor implements QueryExecutor {
         });
 
         QueryResult safeResult = result == null ? new QueryResult(List.of(), List.of(),
-                new QueryMetadata(request.getDataset(), 0, request.getPage(), request.getPageSize(), 0)) : result;
+                new QueryMetadata(request.getTargetName(), 0, request.getPage(), request.getPageSize(), 0)) : result;
         LOGGER.info(
                 "Query returned {} row(s) in {} ms",
                 safeResult.getMetadata().getRowCount(),

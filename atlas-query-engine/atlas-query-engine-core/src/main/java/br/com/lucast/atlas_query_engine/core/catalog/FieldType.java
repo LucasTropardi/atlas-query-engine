@@ -20,6 +20,25 @@ public enum FieldType {
             return Long.valueOf(String.valueOf(value));
         }
     },
+    BOOLEAN {
+        @Override
+        public Object convert(Object value) {
+            if (value instanceof Boolean bool) {
+                return bool;
+            }
+            if (value instanceof Number number) {
+                return number.intValue() != 0;
+            }
+            String normalized = String.valueOf(value).trim();
+            if ("true".equalsIgnoreCase(normalized) || "1".equals(normalized)) {
+                return true;
+            }
+            if ("false".equalsIgnoreCase(normalized) || "0".equals(normalized)) {
+                return false;
+            }
+            throw new IllegalArgumentException("Unsupported boolean value: " + value);
+        }
+    },
     DECIMAL {
         @Override
         public Object convert(Object value) {

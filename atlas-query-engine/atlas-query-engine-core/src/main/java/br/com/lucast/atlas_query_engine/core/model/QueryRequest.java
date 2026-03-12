@@ -15,11 +15,22 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class QueryRequest {
 
-    @NotBlank
+    private String connection;
+
     private String dataset;
+
+    private String schema;
+
+    private String table;
+
+    private String alias;
 
     @NotNull
     private List<@NotBlank String> select = new ArrayList<>();
+
+    @NotNull
+    @Valid
+    private List<ProjectionRequest> projections = new ArrayList<>();
 
     @NotNull
     private List<FilterRequest> filters = new ArrayList<>();
@@ -41,6 +52,10 @@ public class QueryRequest {
     @Valid
     private List<SortRequest> sort = new ArrayList<>();
 
+    @NotNull
+    @Valid
+    private List<JoinRequest> joins = new ArrayList<>();
+
     @Min(1)
     private int page = 1;
 
@@ -52,8 +67,40 @@ public class QueryRequest {
         return dataset;
     }
 
+    public String getConnection() {
+        return connection;
+    }
+
+    public void setConnection(String connection) {
+        this.connection = connection;
+    }
+
     public void setDataset(String dataset) {
         this.dataset = dataset;
+    }
+
+    public String getSchema() {
+        return schema;
+    }
+
+    public void setSchema(String schema) {
+        this.schema = schema;
+    }
+
+    public String getTable() {
+        return table;
+    }
+
+    public void setTable(String table) {
+        this.table = table;
+    }
+
+    public String getAlias() {
+        return alias;
+    }
+
+    public void setAlias(String alias) {
+        this.alias = alias;
     }
 
     public List<String> getSelect() {
@@ -62,6 +109,14 @@ public class QueryRequest {
 
     public void setSelect(List<String> select) {
         this.select = select == null ? new ArrayList<>() : new ArrayList<>(select);
+    }
+
+    public List<ProjectionRequest> getProjections() {
+        return projections;
+    }
+
+    public void setProjections(List<ProjectionRequest> projections) {
+        this.projections = projections == null ? new ArrayList<>() : new ArrayList<>(projections);
     }
 
     @JsonIgnore
@@ -129,6 +184,14 @@ public class QueryRequest {
         this.sort = sort == null ? new ArrayList<>() : new ArrayList<>(sort);
     }
 
+    public List<JoinRequest> getJoins() {
+        return joins;
+    }
+
+    public void setJoins(List<JoinRequest> joins) {
+        this.joins = joins == null ? new ArrayList<>() : new ArrayList<>(joins);
+    }
+
     public int getPage() {
         return page;
     }
@@ -143,6 +206,16 @@ public class QueryRequest {
 
     public void setPageSize(int pageSize) {
         this.pageSize = pageSize;
+    }
+
+    @JsonIgnore
+    public boolean isDirectQuery() {
+        return table != null && !table.isBlank();
+    }
+
+    @JsonIgnore
+    public String getTargetName() {
+        return dataset != null && !dataset.isBlank() ? dataset : table;
     }
 
     private List<FilterRequest> flattenSimpleFilters(FilterNode node) {

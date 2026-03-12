@@ -67,4 +67,30 @@ class ExecutionPlannerTest {
         assertThat(plan.getJoins()).hasSize(1);
         assertThat(plan.getFilterTree()).isInstanceOf(ExecutionPlan.FilterGroupBinding.class);
     }
+
+    @Test
+    void shouldRegisterJoinBindingForCustomerCompanyAddressFields() {
+        QueryRequest request = new QueryRequest();
+        request.setDataset("customerCompanies");
+        request.setSelect(List.of("id", "legalName", "stateUf"));
+        request.setFilterTree(new FilterGroupRequest(
+                LogicalOperator.AND,
+                List.of(
+                        new FilterRequest("active", FilterOperator.EQUALS, true),
+                        new FilterRequest("stateUf", FilterOperator.IN, List.of("SP", "RJ", "MG"))
+                )
+        ));
+
+        ExecutionPlan plan = planner.plan(parser.parse(request));
+
+        assertThat(plan.getJoins()).hasSize(1);
+        ExecutionPlan.JoinBinding join = plan.getJoins().getFirst();
+        assertThat(join.relationName()).isEqualTo("address");
+        assertThat(join.joinType()).isEqualTo(JoinType.LEFT);
+        assertThat(join.sourceAlias()).isEqualTo("t0");
+        assertThat(join.targetAlias()).isEqualTo("t1");
+        assertThat(join.sourceColumn()).isEqualTo("id");
+        assertThat(join.targetColumn()).isEqualTo("customer_company_id");
+        assertThat(join.targetTable()).isEqualTo("public.customer_company_address");
+    }
 }

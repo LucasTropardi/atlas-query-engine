@@ -1,6 +1,5 @@
 package br.com.lucast.atlas_query_engine.core.model;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -13,11 +12,18 @@ import lombok.Setter;
 @AllArgsConstructor
 public class MetricRequest {
 
-    @NotBlank
     private String field;
+
+    private ExpressionNode expression;
 
     @NotNull
     private MetricOperation operation;
 
     private String alias;
+
+    public MetricRequest(String field, MetricOperation operation, String alias) {
+        this.field = field;
+        this.operation = operation;
+        this.alias = alias;
+    }
 }

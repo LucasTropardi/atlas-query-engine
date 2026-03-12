@@ -12,8 +12,7 @@ class SqlQueryBuilder {
     private final List<String> whereConditions = new ArrayList<>();
     private final List<String> groupByColumns = new ArrayList<>();
     private final List<String> orderByColumns = new ArrayList<>();
-    private Integer limit;
-    private Integer offset;
+    private String paginationClause;
 
     SqlQueryBuilder addSelect(String expression) {
         selectColumns.add(expression);
@@ -45,13 +44,8 @@ class SqlQueryBuilder {
         return this;
     }
 
-    SqlQueryBuilder limit(int value) {
-        this.limit = value;
-        return this;
-    }
-
-    SqlQueryBuilder offset(int value) {
-        this.offset = value;
+    SqlQueryBuilder pagination(String clause) {
+        this.paginationClause = clause;
         return this;
     }
 
@@ -72,11 +66,8 @@ class SqlQueryBuilder {
         if (!orderByColumns.isEmpty()) {
             sql.append(" ORDER BY ").append(String.join(", ", orderByColumns));
         }
-        if (limit != null) {
-            sql.append(" LIMIT ").append(limit);
-        }
-        if (offset != null) {
-            sql.append(" OFFSET ").append(offset);
+        if (paginationClause != null && !paginationClause.isBlank()) {
+            sql.append(" ").append(paginationClause);
         }
         return sql.toString();
     }

@@ -17,3 +17,12 @@ spring:
 
 server:
   port: ${ATLAS_SERVER_PORT:8030}
+
+atlas:
+  security:
+    encryption-key: ${ATLAS_ENCRYPTION_KEY:4tl4s-d3m0-sup3r-s4f3-3ncrypti0n-k3y}
+  sql:
+    default-dialect: ${ATLAS_DEFAULT_SQL_DIALECT:POSTGRES}
+  dev:
+    internal-connections:
+      enabled: ${ATLAS_INTERNAL_CONNECTIONS_ENABLED:true}

@@ -25,6 +25,7 @@ class SqlTranslatorTest {
     private final QueryParser parser = new QueryParser();
     private final ExecutionPlanner planner = new ExecutionPlanner(new InMemoryDatasetCatalog());
     private final SqlTranslator translator = new SqlTranslator();
+    private final SqlDialect postgresDialect = new PostgresSqlDialect();
 
     @Test
     void shouldTranslateAggregatedQueryToParameterizedSql() {
@@ -44,7 +45,7 @@ class SqlTranslatorTest {
         request.setPage(1);
         request.setPageSize(50);
 
-        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)));
+        SqlQuery sqlQuery = translate(request);
 
         assertThat(sqlQuery.getSql()).isEqualTo(
                 "SELECT t0.country AS \"country\", t0.status AS \"status\", COUNT(t0.id) AS \"ordersCount\", "
@@ -58,7 +59,7 @@ class SqlTranslatorTest {
     void shouldKeepEqualsFilterParameterizedForSuspiciousValue() {
         QueryRequest request = baseRequestWithSingleFilter(new FilterRequest("status", FilterOperator.EQUALS, "abc' OR 1=1 --"));
 
-        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)));
+        SqlQuery sqlQuery = translate(request);
 
         assertThat(sqlQuery.getSql()).contains("status = ?");
         assertThat(sqlQuery.getSql()).doesNotContain("abc' OR 1=1 --");
@@ -69,7 +70,7 @@ class SqlTranslatorTest {
     void shouldKeepLikeFilterParameterizedForSuspiciousValue() {
         QueryRequest request = baseRequestWithSingleFilter(new FilterRequest("status", FilterOperator.LIKE, "%abc' OR 1=1 --%"));
 
-        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)));
+        SqlQuery sqlQuery = translate(request);
 
         assertThat(sqlQuery.getSql()).contains("status LIKE ?");
         assertThat(sqlQuery.getSql()).doesNotContain("abc' OR 1=1 --");
@@ -80,7 +81,7 @@ class SqlTranslatorTest {
     void shouldGenerateCorrectPlaceholdersForInOperator() {
         QueryRequest request = baseRequestWithSingleFilter(new FilterRequest("status", FilterOperator.IN, List.of("PAID", "PENDING", "CANCELLED")));
 
-        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)));
+        SqlQuery sqlQuery = translate(request);
 
         assertThat(sqlQuery.getSql()).contains("status IN (?, ?, ?)");
         assertThat(sqlQuery.getParameters()).containsExactly("PAID", "PENDING", "CANCELLED");
@@ -91,7 +92,7 @@ class SqlTranslatorTest {
         QueryRequest request = baseRequestWithSingleFilter(new FilterRequest("createdAt", FilterOperator.BETWEEN,
                 List.of("2026-01-01", "2026-01-31")));
 
-        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)));
+        SqlQuery sqlQuery = translate(request);
 
         assertThat(sqlQuery.getSql()).contains("created_at BETWEEN ? AND ?");
         assertThat(sqlQuery.getParameters()).containsExactly(
@@ -104,7 +105,7 @@ class SqlTranslatorTest {
     void shouldFailClearlyWhenInValueIsNotACollection() {
         QueryRequest request = baseRequestWithSingleFilter(new FilterRequest("status", FilterOperator.IN, "PAID"));
 
-        assertThatThrownBy(() -> translator.translate(planner.plan(parser.parse(request))))
+        assertThatThrownBy(() -> translate(request))
                 .isInstanceOf(InvalidQueryException.class)
                 .hasMessageContaining("IN operator requires a collection value");
     }
@@ -114,7 +115,7 @@ class SqlTranslatorTest {
         QueryRequest request = baseRequestWithSingleFilter(new FilterRequest("createdAt", FilterOperator.BETWEEN,
                 List.of("2026-01-01")));
 
-        assertThatThrownBy(() -> translator.translate(planner.plan(parser.parse(request))))
+        assertThatThrownBy(() -> translate(request))
                 .isInstanceOf(InvalidQueryException.class)
                 .hasMessageContaining("BETWEEN operator requires exactly two values");
     }
@@ -129,7 +130,7 @@ class SqlTranslatorTest {
                 )
         ));
 
-        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)));
+        SqlQuery sqlQuery = translate(request);
 
         assertThat(sqlQuery.getSql()).contains("WHERE t0.country = ? OR t0.country = ?");
         assertThat(sqlQuery.getParameters()).containsExactly("BR", "US");
@@ -151,7 +152,7 @@ class SqlTranslatorTest {
                 )
         ));
 
-        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)));
+        SqlQuery sqlQuery = translate(request);
 
         assertThat(sqlQuery.getSql()).contains("WHERE t0.status = ? AND (t0.country = ? OR t0.country = ?)");
         assertThat(sqlQuery.getParameters()).containsExactly("PAID", "BR", "US");
@@ -173,7 +174,7 @@ class SqlTranslatorTest {
                 )
         ));
 
-        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)));
+        SqlQuery sqlQuery = translate(request);
 
         assertThat(sqlQuery.getSql()).contains("WHERE t0.status = ? AND (t0.created_at BETWEEN ? AND ? OR t0.country = ?)");
         assertThat(sqlQuery.getParameters()).containsExactly(
@@ -194,7 +195,7 @@ class SqlTranslatorTest {
                 )
         ));
 
-        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)));
+        SqlQuery sqlQuery = translate(request);
 
         assertThat(sqlQuery.getSql()).contains("WHERE t0.status IN (?, ?) AND t0.country = ?");
         assertThat(sqlQuery.getParameters()).containsExactly("PAID", "PENDING", "BR");
@@ -210,7 +211,7 @@ class SqlTranslatorTest {
                 )
         ));
 
-        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)));
+        SqlQuery sqlQuery = translate(request);
 
         assertThat(sqlQuery.getSql()).contains("status = ? OR t0.country LIKE ?");
         assertThat(sqlQuery.getSql()).doesNotContain("abc' OR 1=1 --");
@@ -234,7 +235,7 @@ class SqlTranslatorTest {
                 )
         ));
 
-        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)));
+        SqlQuery sqlQuery = translate(request);
 
         assertThat(sqlQuery.getSql()).isEqualTo(
                 "SELECT t0.country AS \"country\", COUNT(t0.id) AS \"orders\" FROM public.orders t0 "
@@ -262,12 +263,102 @@ class SqlTranslatorTest {
         request.setPage(1);
         request.setPageSize(50);
 
-        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)));
+        SqlQuery sqlQuery = translate(request);
 
         assertThat(sqlQuery.getSql()).isEqualTo(
                 "SELECT t0.country AS \"country\", t1.name AS \"customerName\", SUM(t0.amount) AS \"revenue\" "
                         + "FROM public.orders t0 LEFT JOIN public.customers t1 ON t0.customer_id = t1.id "
                         + "GROUP BY t0.country, t1.name LIMIT 50 OFFSET 0"
+        );
+    }
+
+    @Test
+    void shouldTranslateCustomerCompaniesQueryWithBooleanAndRelatedAddressFilters() {
+        QueryRequest request = new QueryRequest();
+        request.setDataset("customerCompanies");
+        request.setSelect(List.of(
+                "id",
+                "tutorId",
+                "legalName",
+                "tradeName",
+                "cnpj",
+                "phone",
+                "email",
+                "active",
+                "createdAt",
+                "updatedAt",
+                "zipCode",
+                "street",
+                "number",
+                "complement",
+                "neighborhood",
+                "cityName",
+                "cityIbge",
+                "stateUf",
+                "country"
+        ));
+        request.setFilterTree(new FilterGroupRequest(
+                LogicalOperator.AND,
+                List.of(
+                        new FilterRequest("active", FilterOperator.EQUALS, true),
+                        new FilterRequest("stateUf", FilterOperator.IN, List.of("SP", "RJ", "MG"))
+                )
+        ));
+        request.setSort(List.of(new SortRequest("legalName", SortDirection.ASC)));
+        request.setPage(1);
+        request.setPageSize(100);
+
+        SqlQuery sqlQuery = translate(request);
+
+        assertThat(sqlQuery.getSql()).isEqualTo(
+                "SELECT t0.id AS \"id\", t0.tutor_id AS \"tutorId\", t0.legal_name AS \"legalName\", "
+                        + "t0.trade_name AS \"tradeName\", t0.cnpj AS \"cnpj\", t0.phone AS \"phone\", "
+                        + "t0.email AS \"email\", t0.active AS \"active\", t0.created_at AS \"createdAt\", "
+                        + "t0.updated_at AS \"updatedAt\", t1.zip_code AS \"zipCode\", t1.street AS \"street\", "
+                        + "t1.number AS \"number\", t1.complement AS \"complement\", t1.neighborhood AS \"neighborhood\", "
+                        + "t1.city_name AS \"cityName\", t1.city_ibge AS \"cityIbge\", t1.state_uf AS \"stateUf\", "
+                        + "t1.country AS \"country\" FROM public.customer_companies t0 "
+                        + "LEFT JOIN public.customer_company_address t1 ON t0.id = t1.customer_company_id "
+                        + "WHERE t0.active = ? AND t1.state_uf IN (?, ?, ?) ORDER BY t0.legal_name ASC LIMIT 100 OFFSET 0"
+        );
+        assertThat(sqlQuery.getParameters()).containsExactly(true, "SP", "RJ", "MG");
+    }
+
+    @Test
+    void shouldTranslateUsingMySqlDialect() {
+        QueryRequest request = new QueryRequest();
+        request.setDataset("orders");
+        request.setSelect(List.of("country", "customerName"));
+        request.setMetrics(List.of(new MetricRequest("amount", MetricOperation.SUM, "revenue")));
+        request.setGroupBy(List.of("country", "customerName"));
+        request.setPage(1);
+        request.setPageSize(50);
+
+        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)), new MySqlSqlDialect());
+
+        assertThat(sqlQuery.getSql()).isEqualTo(
+                "SELECT t0.country AS `country`, t1.name AS `customerName`, SUM(t0.amount) AS `revenue` "
+                        + "FROM public.orders t0 LEFT JOIN public.customers t1 ON t0.customer_id = t1.id "
+                        + "GROUP BY t0.country, t1.name LIMIT 50 OFFSET 0"
+        );
+    }
+
+    @Test
+    void shouldTranslateUsingOracleDialect() {
+        QueryRequest request = new QueryRequest();
+        request.setDataset("orders");
+        request.setSelect(List.of("country"));
+        request.setMetrics(List.of(new MetricRequest("id", MetricOperation.COUNT, "orders")));
+        request.setGroupBy(List.of("country"));
+        request.setSort(List.of(new SortRequest("orders", SortDirection.DESC)));
+        request.setPage(1);
+        request.setPageSize(50);
+
+        SqlQuery sqlQuery = translator.translate(planner.plan(parser.parse(request)), new OracleSqlDialect());
+
+        assertThat(sqlQuery.getSql()).isEqualTo(
+                "SELECT t0.country AS \"country\", COUNT(t0.id) AS \"orders\" FROM public.orders t0 "
+                        + "GROUP BY t0.country ORDER BY \"orders\" DESC OFFSET 0 ROWS FETCH NEXT 50 ROWS ONLY"
         );
     }
 
@@ -295,5 +386,9 @@ class SqlTranslatorTest {
         request.setPage(1);
         request.setPageSize(50);
         return request;
+    }
+
+    private SqlQuery translate(QueryRequest request) {
+        return translator.translate(planner.plan(parser.parse(request)), postgresDialect);
     }
 }

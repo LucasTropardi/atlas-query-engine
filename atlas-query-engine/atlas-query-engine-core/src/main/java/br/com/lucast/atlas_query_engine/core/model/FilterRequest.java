@@ -13,12 +13,19 @@ import lombok.Setter;
 @AllArgsConstructor
 public class FilterRequest implements FilterNode {
 
-    @NotBlank
     private String field;
+
+    private ExpressionNode expression;
 
     @NotNull
     private FilterOperator operator;
 
     @NotNull
     private Object value;
+
+    public FilterRequest(String field, FilterOperator operator, Object value) {
+        this.field = field;
+        this.operator = operator;
+        this.value = value;
+    }
 }

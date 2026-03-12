@@ -65,6 +65,7 @@ class QueryRequestDeserializationTest {
     void shouldDeserializeStructuredLogicalFilters() throws Exception {
         String json = """
                 {
+                  "connection": "sales_mysql",
                   "dataset": "orders",
                   "select": ["country"],
                   "filters": {
@@ -89,6 +90,7 @@ class QueryRequestDeserializationTest {
 
         QueryRequest request = objectMapper.readValue(json, QueryRequest.class);
 
+        assertThat(request.getConnection()).isEqualTo("sales_mysql");
         assertThat(request.getFilterTree()).isInstanceOf(FilterGroupRequest.class);
         FilterGroupRequest root = (FilterGroupRequest) request.getFilterTree();
         assertThat(root.getOperator()).isEqualTo(LogicalOperator.AND);
@@ -98,5 +100,94 @@ class QueryRequestDeserializationTest {
         FilterGroupRequest nested = (FilterGroupRequest) root.getConditions().get(1);
         assertThat(nested.getOperator()).isEqualTo(LogicalOperator.OR);
         assertThat(nested.getConditions()).hasSize(2);
+    }
+
+    @Test
+    void shouldKeepConnectionNullWhenJsonOmitsField() throws Exception {
+        String json = """
+                {
+                  "dataset": "orders",
+                  "select": ["country"]
+                }
+                """;
+
+        QueryRequest request = objectMapper.readValue(json, QueryRequest.class);
+
+        assertThat(request.getConnection()).isNull();
+    }
+
+    @Test
+    void shouldDeserializeDirectQueryShapeWithoutDataset() throws Exception {
+        String json = """
+                {
+                  "connection": "vetcare_pg",
+                  "schema": "public",
+                  "table": "customer_companies",
+                  "alias": "cc",
+                  "select": ["cc.id", "cc.legal_name"],
+                  "joins": [
+                    {
+                      "type": "LEFT",
+                      "schema": "public",
+                      "table": "customer_company_address",
+                      "alias": "cca",
+                      "sourceField": "cc.id",
+                      "targetField": "cca.customer_company_id"
+                    }
+                  ]
+                }
+                """;
+
+        QueryRequest request = objectMapper.readValue(json, QueryRequest.class);
+
+        assertThat(request.getDataset()).isNull();
+        assertThat(request.getConnection()).isEqualTo("vetcare_pg");
+        assertThat(request.getTable()).isEqualTo("customer_companies");
+        assertThat(request.getAlias()).isEqualTo("cc");
+        assertThat(request.getJoins()).hasSize(1);
+        assertThat(request.isDirectQuery()).isTrue();
+    }
+
+    @Test
+    void shouldDeserializeProjectionExpressionsAndExistsFilters() throws Exception {
+        String json = """
+                {
+                  "table": "customer_companies",
+                  "alias": "cc",
+                  "projections": [
+                    {
+                      "alias": "display_name",
+                      "expression": {
+                        "function": "coalesce",
+                        "args": [
+                          { "column": "cc.trade_name" },
+                          { "column": "cc.legal_name" }
+                        ]
+                      }
+                    }
+                  ],
+                  "filters": {
+                    "operator": "AND",
+                    "conditions": [
+                      {
+                        "exists": {
+                          "table": "customer_company_address",
+                          "alias": "cca",
+                          "sourceField": "cc.id",
+                          "targetField": "cca.customer_company_id"
+                        }
+                      }
+                    ]
+                  }
+                }
+                """;
+
+        QueryRequest request = objectMapper.readValue(json, QueryRequest.class);
+
+        assertThat(request.getProjections()).hasSize(1);
+        assertThat(request.getFilterTree()).isInstanceOf(FilterGroupRequest.class);
+        FilterGroupRequest root = (FilterGroupRequest) request.getFilterTree();
+        assertThat(root.getConditions()).hasSize(1);
+        assertThat(root.getConditions().get(0)).isInstanceOf(ExistsFilterRequest.class);
     }
 }

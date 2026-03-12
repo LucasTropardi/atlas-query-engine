@@ -11,16 +11,16 @@ import java.util.stream.Collectors;
 
 public class SqlTranslator {
 
-    public SqlQuery translate(ExecutionPlan plan) {
+    public SqlQuery translate(ExecutionPlan plan, SqlDialect sqlDialect) {
         List<Object> parameters = new ArrayList<>();
         SqlQueryBuilder builder = new SqlQueryBuilder()
-                .from(plan.getDataset().getQualifiedTableName() + " " + plan.getBaseAlias())
-                .limit(plan.getLimit())
-                .offset(plan.getOffset());
+                .from(sqlDialect.qualifyTable(plan.getDataset().getSchemaName(), plan.getDataset().getTableName())
+                        + " " + plan.getBaseAlias())
+                .pagination(sqlDialect.renderPagination(plan.getLimit(), plan.getOffset()));
 
-        buildSelectClause(plan).forEach(builder::addSelect);
+        buildSelectClause(plan, sqlDialect).forEach(builder::addSelect);
         plan.getJoins().stream()
-                .map(this::buildJoinClause)
+                .map(join -> buildJoinClause(join, sqlDialect))
                 .forEach(builder::addJoin);
 
         String whereClause = buildFilterClause(plan.getFilterTree(), parameters, false);
@@ -36,21 +36,22 @@ public class SqlTranslator {
 
         plan.getSortBindings().stream()
                 .map(sort -> sort.metricSort()
-                        ? quoteIdentifier(sort.metricAlias()) + " " + sort.direction().name()
+                        ? sqlDialect.quoteIdentifier(sort.metricAlias()) + " " + sort.direction().name()
                         : sort.dimensionBinding().qualifiedColumn() + " " + sort.direction().name())
                 .forEach(builder::addOrderBy);
 
         return new SqlQuery(builder.build(), parameters);
     }
 
-    private List<String> buildSelectClause(ExecutionPlan plan) {
+    private List<String> buildSelectClause(ExecutionPlan plan, SqlDialect sqlDialect) {
         List<String> clauses = new ArrayList<>();
         plan.getSelectedDimensions().forEach(dimensionBinding ->
-                clauses.add(dimensionBinding.qualifiedColumn() + " AS " + quoteIdentifier(dimensionBinding.dimension().getLogicalName())));
+                clauses.add(dimensionBinding.qualifiedColumn() + " AS "
+                        + sqlDialect.quoteIdentifier(dimensionBinding.dimension().getLogicalName())));
         plan.getMetrics().forEach(metric ->
                 clauses.add(metric.request().getOperation().getSqlFunction()
                         + "(" + metric.qualifiedColumn() + ") AS "
-                        + quoteIdentifier(metric.request().getAlias())));
+                        + sqlDialect.quoteIdentifier(metric.request().getAlias())));
         return clauses;
     }
 
@@ -131,8 +132,13 @@ public class SqlTranslator {
         return filterBinding.dimensionBinding().dimension().getFieldType().safeConvert(value, fieldName);
     }
 
-    private String buildJoinClause(ExecutionPlan.JoinBinding joinBinding) {
-        return joinBinding.joinType().name() + " JOIN " + joinBinding.targetTable() + " " + joinBinding.targetAlias()
+    private String buildJoinClause(ExecutionPlan.JoinBinding joinBinding, SqlDialect sqlDialect) {
+        String[] parts = joinBinding.targetTable().split("\\.", 2);
+        String qualifiedTargetTable = parts.length == 2
+                ? sqlDialect.qualifyTable(parts[0], parts[1])
+                : joinBinding.targetTable();
+
+        return joinBinding.joinType().name() + " JOIN " + qualifiedTargetTable + " " + joinBinding.targetAlias()
                 + " ON " + joinBinding.sourceAlias() + "." + joinBinding.sourceColumn()
                 + " = " + joinBinding.targetAlias() + "." + joinBinding.targetColumn();
     }
@@ -151,9 +157,5 @@ public class SqlTranslator {
         }
         throw new InvalidQueryException(operator.getValue().toUpperCase() + " operator requires a collection value for field "
                 + fieldName);
-    }
-
-    private String quoteIdentifier(String value) {
-        return "\"" + value.replace("\"", "\"\"") + "\"";
     }
 }

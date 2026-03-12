@@ -1,6 +1,5 @@
 package br.com.lucast.atlas_query_engine.core.model;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -13,9 +12,15 @@ import lombok.Setter;
 @AllArgsConstructor
 public class SortRequest {
 
-    @NotBlank
     private String field;
+
+    private ExpressionNode expression;
 
     @NotNull
     private SortDirection direction = SortDirection.ASC;
+
+    public SortRequest(String field, SortDirection direction) {
+        this.field = field;
+        this.direction = direction;
+    }
 }

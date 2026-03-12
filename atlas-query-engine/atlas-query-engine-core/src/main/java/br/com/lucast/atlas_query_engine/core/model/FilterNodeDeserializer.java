@@ -45,14 +45,47 @@ public class FilterNodeDeserializer extends ValueDeserializer<FilterNode> {
                     conditions
             );
         }
+        if (node.isObject() && node.has("exists")) {
+            JsonNode existsNode = node.get("exists");
+            List<JoinRequest> joins = new ArrayList<>();
+            JsonNode joinsNode = existsNode.get("joins");
+            if (joinsNode != null && joinsNode.isArray()) {
+                for (JsonNode joinNode : joinsNode) {
+                    joins.add(new JoinRequest(
+                            textValue(joinNode.get("schema")),
+                            textValue(joinNode.get("table")),
+                            textValue(joinNode.get("alias")),
+                            joinNode.get("type") == null || joinNode.get("type").isNull() ? null
+                                    : JoinType.fromValue(joinNode.get("type").asText()),
+                            textValue(joinNode.get("sourceField")),
+                            textValue(joinNode.get("targetField"))
+                    ));
+                }
+            }
+            FilterNode filtersNode = deserializeNode(parser, existsNode.get("filters"));
+            return new ExistsFilterRequest(
+                    textValue(existsNode.get("schema")),
+                    textValue(existsNode.get("table")),
+                    textValue(existsNode.get("alias")),
+                    existsNode.get("type") == null || existsNode.get("type").isNull() ? JoinType.INNER
+                            : JoinType.fromValue(existsNode.get("type").asText()),
+                    textValue(existsNode.get("sourceField")),
+                    textValue(existsNode.get("targetField")),
+                    joins,
+                    filtersNode == null ? FilterGroupRequest.empty() : filtersNode
+            );
+        }
         JsonNode operatorNode = node.get("operator");
         JsonNode valueNode = node.get("value");
         Object value = toJavaValue(valueNode);
-        return new FilterRequest(
-                textValue(node.get("field")),
-                operatorNode == null || operatorNode.isNull() ? null : FilterOperator.fromValue(operatorNode.asText()),
-                value
-        );
+        FilterRequest filter = new FilterRequest();
+        filter.setField(textValue(node.get("field")));
+        if (node.has("expression")) {
+            filter.setExpression(ExpressionNodeDeserializer.deserializeNode(node.get("expression")));
+        }
+        filter.setOperator(operatorNode == null || operatorNode.isNull() ? null : FilterOperator.fromValue(operatorNode.asText()));
+        filter.setValue(value);
+        return filter;
     }
 
     private String textValue(JsonNode node) {
