@@ -13,20 +13,26 @@ import org.springframework.stereotype.Component;
 @Component
 public class DriverManagerExternalDataSourceFactory implements ExternalDataSourceFactory {
 
-    private final Map<String, DataSource> cache = new ConcurrentHashMap<>();
+    private final Map<String, CachedDataSource> cache = new ConcurrentHashMap<>();
 
     @Override
     public DataSource create(ConnectionDefinition connectionDefinition) {
-        return cache.computeIfAbsent(connectionDefinition.connectionKey(), ignored -> {
+        validate(connectionDefinition);
+        return cache.compute(connectionDefinition.connectionKey(), (key, existing) -> {
+            if (existing != null && existing.definition().equals(connectionDefinition)) {
+                return existing;
+            }
             String jdbcUrl = buildJdbcUrl(connectionDefinition);
             DriverManagerDataSource dataSource = new DriverManagerDataSource();
             dataSource.setDriverClassName(resolveDriverClassName(connectionDefinition.dbType()));
             dataSource.setUrl(jdbcUrl);
             dataSource.setUsername(connectionDefinition.username());
             dataSource.setPassword(connectionDefinition.password());
-            return dataSource;
-        });
+            return new CachedDataSource(connectionDefinition, dataSource);
+        }).dataSource();
     }
+
+    private record CachedDataSource(ConnectionDefinition definition, DataSource dataSource) {}
 
     @Override
     public String buildJdbcUrl(ConnectionDefinition connectionDefinition) {
@@ -61,6 +67,9 @@ public class DriverManagerExternalDataSourceFactory implements ExternalDataSourc
     private void validate(ConnectionDefinition connectionDefinition) {
         if (connectionDefinition == null) {
             throw new JdbcConnectionConfigurationException("Connection definition must not be null");
+        }
+        if (isBlank(connectionDefinition.connectionKey())) {
+            throw new JdbcConnectionConfigurationException("Connection key must not be blank");
         }
         if (connectionDefinition.dbType() == null) {
             throw new UnsupportedDatabaseTypeException("null");

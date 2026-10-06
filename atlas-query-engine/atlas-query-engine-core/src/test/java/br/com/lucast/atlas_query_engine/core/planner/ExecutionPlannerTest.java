@@ -1,5 +1,6 @@
 package br.com.lucast.atlas_query_engine.core.planner;
 
+import br.com.lucast.atlas_query_engine.core.support.TestDatasets;
 import br.com.lucast.atlas_query_engine.core.catalog.InMemoryDatasetCatalog;
 import br.com.lucast.atlas_query_engine.core.catalog.JoinType;
 import br.com.lucast.atlas_query_engine.core.model.FilterGroupRequest;
@@ -18,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ExecutionPlannerTest {
 
     private final QueryParser parser = new QueryParser();
-    private final ExecutionPlanner planner = new ExecutionPlanner(new InMemoryDatasetCatalog());
+    private final ExecutionPlanner planner = new ExecutionPlanner(new InMemoryDatasetCatalog(TestDatasets.definitions()));
 
     @Test
     void shouldRegisterJoinBindingForRelatedDimension() {

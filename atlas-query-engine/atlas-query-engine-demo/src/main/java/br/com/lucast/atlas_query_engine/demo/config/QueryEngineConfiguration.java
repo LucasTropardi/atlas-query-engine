@@ -4,13 +4,12 @@ import br.com.lucast.atlas_query_engine.core.api.DefaultQueryEngine;
 import br.com.lucast.atlas_query_engine.core.api.QueryEngine;
 import br.com.lucast.atlas_query_engine.core.catalog.DatasetCatalog;
 import br.com.lucast.atlas_query_engine.core.catalog.InMemoryDatasetCatalog;
-import br.com.lucast.atlas_query_engine.core.executor.QueryExecutor;
 import br.com.lucast.atlas_query_engine.core.parser.QueryParser;
 import br.com.lucast.atlas_query_engine.core.planner.ExecutionPlanner;
-import br.com.lucast.atlas_query_engine.core.translator.SqlDialectResolver;
+import br.com.lucast.atlas_query_engine.core.executor.QueryExecutionResolver;
+import br.com.lucast.atlas_query_engine.core.translator.DirectSqlTranslator;
 import br.com.lucast.atlas_query_engine.core.translator.SqlTranslator;
 import br.com.lucast.atlas_query_engine.core.validator.QueryValidator;
-import br.com.lucast.atlas_query_engine.demo.execution.RoutingQueryExecutor;
 import jakarta.validation.Validator;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -22,7 +21,7 @@ public class QueryEngineConfiguration {
 
     @Bean
     DatasetCatalog datasetCatalog() {
-        return new InMemoryDatasetCatalog();
+        return new InMemoryDatasetCatalog(DemoDatasets.definitions());
     }
 
     @Bean
@@ -46,8 +45,8 @@ public class QueryEngineConfiguration {
     }
 
     @Bean
-    QueryExecutor queryExecutor(RoutingQueryExecutor routingQueryExecutor) {
-        return routingQueryExecutor;
+    DirectSqlTranslator directSqlTranslator() {
+        return new DirectSqlTranslator();
     }
 
     @Bean
@@ -56,16 +55,16 @@ public class QueryEngineConfiguration {
             QueryValidator queryValidator,
             ExecutionPlanner executionPlanner,
             SqlTranslator sqlTranslator,
-            SqlDialectResolver sqlDialectResolver,
-            QueryExecutor queryExecutor
+            DirectSqlTranslator directSqlTranslator,
+            QueryExecutionResolver executionResolver
     ) {
         return new DefaultQueryEngine(
                 queryParser,
                 queryValidator,
                 executionPlanner,
                 sqlTranslator,
-                sqlDialectResolver,
-                queryExecutor
+                directSqlTranslator,
+                executionResolver
         );
     }
 }

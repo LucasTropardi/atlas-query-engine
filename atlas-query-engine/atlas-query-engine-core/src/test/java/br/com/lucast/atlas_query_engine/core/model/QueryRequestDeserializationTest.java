@@ -190,4 +190,15 @@ class QueryRequestDeserializationTest {
         assertThat(root.getConditions()).hasSize(1);
         assertThat(root.getConditions().get(0)).isInstanceOf(ExistsFilterRequest.class);
     }
+    @Test
+    void shouldSerializeLegacyAndStructuredInputsToTheSameFilterTree() {
+        QueryRequest legacy = objectMapper.readValue("""
+                {"table":"orders","select":["id"],"filters":[{"field":"id","operator":"=","value":1}]}
+                """, QueryRequest.class);
+        QueryRequest structured = objectMapper.readValue("""
+                {"table":"orders","select":["id"],"filters":{"operator":"AND","conditions":[{"field":"id","operator":"=","value":1}]}}
+                """, QueryRequest.class);
+        assertThat(objectMapper.writeValueAsString(legacy)).isEqualTo(objectMapper.writeValueAsString(structured));
+    }
+
 }

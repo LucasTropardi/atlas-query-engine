@@ -1,5 +1,6 @@
 package br.com.lucast.atlas_query_engine.core.translator;
 
+import br.com.lucast.atlas_query_engine.core.support.TestDatasets;
 import br.com.lucast.atlas_query_engine.core.catalog.InMemoryDatasetCatalog;
 import br.com.lucast.atlas_query_engine.core.exception.InvalidQueryException;
 import br.com.lucast.atlas_query_engine.core.model.FilterGroupRequest;
@@ -23,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class SqlTranslatorTest {
 
     private final QueryParser parser = new QueryParser();
-    private final ExecutionPlanner planner = new ExecutionPlanner(new InMemoryDatasetCatalog());
+    private final ExecutionPlanner planner = new ExecutionPlanner(new InMemoryDatasetCatalog(TestDatasets.definitions()));
     private final SqlTranslator translator = new SqlTranslator();
     private final SqlDialect postgresDialect = new PostgresSqlDialect();
 

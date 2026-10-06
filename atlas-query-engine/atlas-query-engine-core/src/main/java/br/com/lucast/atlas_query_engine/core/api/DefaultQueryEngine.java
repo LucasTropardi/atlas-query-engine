@@ -1,6 +1,8 @@
 package br.com.lucast.atlas_query_engine.core.api;
 
 import br.com.lucast.atlas_query_engine.core.executor.QueryExecutor;
+import br.com.lucast.atlas_query_engine.core.executor.QueryExecutionResolver;
+import br.com.lucast.atlas_query_engine.core.executor.ResolvedQueryExecution;
 import br.com.lucast.atlas_query_engine.core.model.QueryRequest;
 import br.com.lucast.atlas_query_engine.core.parser.QueryParser;
 import br.com.lucast.atlas_query_engine.core.planner.ExecutionPlan;
@@ -24,8 +26,7 @@ public class DefaultQueryEngine implements QueryEngine {
     private final ExecutionPlanner executionPlanner;
     private final SqlTranslator sqlTranslator;
     private final DirectSqlTranslator directSqlTranslator;
-    private final SqlDialectResolver sqlDialectResolver;
-    private final QueryExecutor queryExecutor;
+    private final QueryExecutionResolver executionResolver;
 
     public DefaultQueryEngine(
             QueryParser queryParser,
@@ -35,23 +36,34 @@ public class DefaultQueryEngine implements QueryEngine {
             SqlDialectResolver sqlDialectResolver,
             QueryExecutor queryExecutor
     ) {
+        this(queryParser, queryValidator, executionPlanner, sqlTranslator, new DirectSqlTranslator(),
+                request -> new ResolvedQueryExecution(sqlDialectResolver.resolve(request), queryExecutor));
+    }
+
+    public DefaultQueryEngine(
+            QueryParser queryParser,
+            QueryValidator queryValidator,
+            ExecutionPlanner executionPlanner,
+            SqlTranslator sqlTranslator,
+            DirectSqlTranslator directSqlTranslator,
+            QueryExecutionResolver executionResolver
+    ) {
         this.queryParser = queryParser;
         this.queryValidator = queryValidator;
         this.executionPlanner = executionPlanner;
         this.sqlTranslator = sqlTranslator;
-        this.directSqlTranslator = new DirectSqlTranslator();
-        this.sqlDialectResolver = sqlDialectResolver;
-        this.queryExecutor = queryExecutor;
+        this.directSqlTranslator = directSqlTranslator;
+        this.executionResolver = executionResolver;
     }
 
     @Override
     public QueryResult execute(QueryRequest request) {
         long startTime = System.nanoTime();
-        LOGGER.info("Executing query for target={}", request.getTargetName());
 
         QueryRequest normalizedRequest = queryParser.parse(request);
         queryValidator.validate(normalizedRequest);
-        SqlDialect sqlDialect = sqlDialectResolver.resolve(normalizedRequest);
+        ResolvedQueryExecution execution = executionResolver.resolve(normalizedRequest);
+        SqlDialect sqlDialect = execution.dialect();
         LOGGER.info("Resolved SQL dialect={} for target={}", sqlDialect.dialectName(), normalizedRequest.getTargetName());
         SqlQuery sqlQuery;
         if (normalizedRequest.isDirectQuery()) {
@@ -60,10 +72,9 @@ public class DefaultQueryEngine implements QueryEngine {
             ExecutionPlan executionPlan = executionPlanner.plan(normalizedRequest);
             sqlQuery = sqlTranslator.translate(executionPlan, sqlDialect);
         }
-        LOGGER.info("Generated SQL: {}", sqlQuery.getSql());
-        LOGGER.info("SQL params: {}", sqlQuery.getParameters());
+        LOGGER.debug("Generated SQL: {}", sqlQuery.getSql());
 
-        QueryResult result = queryExecutor.execute(normalizedRequest, sqlQuery);
+        QueryResult result = execution.executor().execute(normalizedRequest, sqlQuery);
         long executionTimeMs = (System.nanoTime() - startTime) / 1_000_000;
         LOGGER.info("Finished query for target={} in {} ms", normalizedRequest.getTargetName(), executionTimeMs);
         return result;

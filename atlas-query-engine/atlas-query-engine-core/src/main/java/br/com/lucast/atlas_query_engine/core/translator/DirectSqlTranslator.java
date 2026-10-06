@@ -118,7 +118,7 @@ public class DirectSqlTranslator {
             String combined = String.join(" " + groupBinding.getOperator().name() + " ", clauses);
             return nested ? "(" + combined + ")" : combined;
         }
-        return null;
+        throw new InvalidQueryException("Unsupported filter node");
     }
 
     private String buildSimpleFilterClause(FilterRequest filter, List<Object> parameters, SqlDialect sqlDialect) {
@@ -154,7 +154,7 @@ public class DirectSqlTranslator {
                 .append(quoteReference(exists.getTargetField(), sqlDialect))
                 .append(" = ")
                 .append(quoteReference(exists.getSourceField(), sqlDialect));
-        String nestedFilters = buildFilterClause(exists.getFilters(), parameters, false, sqlDialect);
+        String nestedFilters = buildFilterClause(exists.getFilters(), parameters, true, sqlDialect);
         if (nestedFilters != null && !nestedFilters.isBlank()) {
             clause.append(" AND ").append(nestedFilters);
         }

@@ -1,6 +1,8 @@
 package br.com.lucast.atlas_query_engine.core.parser;
 
 import br.com.lucast.atlas_query_engine.core.model.FilterGroupRequest;
+import br.com.lucast.atlas_query_engine.core.model.ExistsFilterRequest;
+import br.com.lucast.atlas_query_engine.core.exception.InvalidQueryException;
 import br.com.lucast.atlas_query_engine.core.model.FilterNode;
 import br.com.lucast.atlas_query_engine.core.model.FilterRequest;
 import br.com.lucast.atlas_query_engine.core.model.JoinRequest;
@@ -16,6 +18,9 @@ import java.util.Objects;
 public class QueryParser {
 
     public QueryRequest parse(QueryRequest request) {
+        if (request == null) {
+            throw new InvalidQueryException("Query is required");
+        }
         QueryRequest normalized = new QueryRequest();
         normalized.setDataset(trimToNull(request.getDataset()));
         normalized.setSchema(trimToNull(request.getSchema()));
@@ -65,7 +70,14 @@ public class QueryParser {
             }
             return new FilterGroupRequest(group.getOperator(), normalizedConditions);
         }
-        return FilterGroupRequest.empty();
+        if (filterNode instanceof ExistsFilterRequest exists) {
+            return new ExistsFilterRequest(
+                    trimToNull(exists.getSchema()), trimToNull(exists.getTable()),
+                    trimToNull(exists.getAlias()), exists.getType(),
+                    trimToNull(exists.getSourceField()), trimToNull(exists.getTargetField()),
+                    normalizeJoins(exists.getJoins()), normalizeFilterNode(exists.getFilters()));
+        }
+        throw new InvalidQueryException("Unsupported filter node");
     }
 
     private List<MetricRequest> normalizeMetrics(List<MetricRequest> metrics) {

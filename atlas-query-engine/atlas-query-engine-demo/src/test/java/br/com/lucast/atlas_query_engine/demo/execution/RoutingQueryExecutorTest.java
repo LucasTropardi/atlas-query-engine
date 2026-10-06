@@ -1,5 +1,6 @@
 package br.com.lucast.atlas_query_engine.demo.execution;
 
+import br.com.lucast.atlas_query_engine.demo.config.AtlasSqlProperties;
 import br.com.lucast.atlas_query_engine.core.model.QueryRequest;
 import br.com.lucast.atlas_query_engine.core.result.QueryResult;
 import br.com.lucast.atlas_query_engine.core.translator.SqlQuery;
@@ -57,7 +58,7 @@ class RoutingQueryExecutorTest {
     void shouldUseDefaultDatasourceWhenConnectionIsNotProvided() {
         RoutingQueryExecutor executor = new RoutingQueryExecutor(new StubResolver(
                 QueryExecutionContext.defaultDataSource(defaultDatabase)
-        ));
+        ), new DefaultSqlDialectResolver(new AtlasSqlProperties()));
         QueryRequest request = new QueryRequest();
         request.setDataset("orders");
 
@@ -70,7 +71,7 @@ class RoutingQueryExecutorTest {
     void shouldUseExternalDatasourceWhenConnectionIsProvided() {
         RoutingQueryExecutor executor = new RoutingQueryExecutor(new StubResolver(
                 QueryExecutionContext.externalDataSource(externalDatabase, "sales_mysql", DatabaseType.MYSQL)
-        ));
+        ), new DefaultSqlDialectResolver(new AtlasSqlProperties()));
         QueryRequest request = new QueryRequest();
         request.setDataset("orders");
         request.setConnection("sales_mysql");
@@ -84,7 +85,7 @@ class RoutingQueryExecutorTest {
     void shouldWrapExternalDatasourceFailures() {
         RoutingQueryExecutor executor = new RoutingQueryExecutor(new StubResolver(
                 QueryExecutionContext.externalDataSource(new BrokenDataSource(), "oracle_finance", DatabaseType.ORACLE)
-        ));
+        ), new DefaultSqlDialectResolver(new AtlasSqlProperties()));
         QueryRequest request = new QueryRequest();
         request.setDataset("orders");
         request.setConnection("oracle_finance");
@@ -95,9 +96,25 @@ class RoutingQueryExecutorTest {
                 .hasCauseInstanceOf(CannotGetJdbcConnectionException.class);
     }
 
+    @Test
+    void shouldResolveConnectionOnlyOnceForTranslationAndExecution() {
+        StubResolver resolver = new StubResolver(
+                QueryExecutionContext.externalDataSource(externalDatabase, "sales_mysql", DatabaseType.MYSQL));
+        RoutingQueryExecutor executor = new RoutingQueryExecutor(resolver,
+                new DefaultSqlDialectResolver(new AtlasSqlProperties()));
+        QueryRequest request = new QueryRequest();
+        request.setConnection("sales_mysql");
+        var execution = executor.resolve(request);
+        var result = execution.executor().execute(request, new SqlQuery("SELECT country FROM orders", List.of()));
+        assertThat(execution.dialect()).isInstanceOf(br.com.lucast.atlas_query_engine.core.translator.MySqlSqlDialect.class);
+        assertThat(result.getRows()).containsExactly(List.of("US"));
+        assertThat(resolver.calls).isEqualTo(1);
+    }
+
     private static final class StubResolver extends QueryExecutionConnectionResolver {
 
         private final QueryExecutionContext context;
+        private int calls;
 
         private StubResolver(QueryExecutionContext context) {
             super(null, null, null);
@@ -106,6 +123,7 @@ class RoutingQueryExecutorTest {
 
         @Override
         public QueryExecutionContext resolve(QueryRequest request) {
+            calls++;
             return context;
         }
     }

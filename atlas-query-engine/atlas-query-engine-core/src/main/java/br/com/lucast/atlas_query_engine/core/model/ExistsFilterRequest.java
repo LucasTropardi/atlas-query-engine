@@ -36,5 +36,6 @@ public class ExistsFilterRequest implements FilterNode {
     private List<JoinRequest> joins = new ArrayList<>();
 
     @NotNull
+    @Valid
     private FilterNode filters = FilterGroupRequest.empty();
 }

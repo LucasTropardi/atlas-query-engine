@@ -32,14 +32,8 @@ public class QueryRequest {
     @Valid
     private List<ProjectionRequest> projections = new ArrayList<>();
 
-    @NotNull
-    private List<FilterRequest> filters = new ArrayList<>();
-
     @JsonIgnore
     private FilterNode filterTree = FilterGroupRequest.empty();
-
-    @JsonIgnore
-    private boolean structuredFilters;
 
     @NotNull
     @Valid
@@ -119,45 +113,36 @@ public class QueryRequest {
         this.projections = projections == null ? new ArrayList<>() : new ArrayList<>(projections);
     }
 
+    /** Read-only view of simple filters. Use setFilters or setFilterTree to change filters. */
     @JsonIgnore
     public List<FilterRequest> getFilters() {
-        return filters;
+        return List.copyOf(flattenSimpleFilters(filterTree));
     }
 
     @JsonIgnore
     public void setFilters(List<FilterRequest> filters) {
-        this.filters = filters == null ? new ArrayList<>() : new ArrayList<>(filters);
-        this.structuredFilters = false;
-        this.filterTree = null;
+        setFilterTree(FilterGroupRequest.and(filters == null ? List.of() : filters));
     }
 
     @JsonSetter("filters")
     public void setFiltersPayload(FilterNode filters) {
-        this.filterTree = filters == null ? FilterGroupRequest.empty() : filters;
-        this.filters = flattenSimpleFilters(this.filterTree);
-        this.structuredFilters = true;
+        setFilterTree(filters);
     }
 
     @JsonGetter("filters")
-    public Object getFiltersPayload() {
-        if (structuredFilters) {
-            return getFilterTree();
-        }
-        return filters;
+    public FilterNode getFiltersPayload() {
+        return filterTree;
     }
 
     @JsonIgnore
     @NotNull
     @Valid
     public FilterNode getFilterTree() {
-        if (!structuredFilters) {
-            return FilterGroupRequest.and(filters);
-        }
-        return filterTree == null ? FilterGroupRequest.empty() : filterTree;
+        return filterTree;
     }
 
     public void setFilterTree(FilterNode filterTree) {
-        setFiltersPayload(filterTree);
+        this.filterTree = filterTree == null ? FilterGroupRequest.empty() : filterTree;
     }
 
     public List<MetricRequest> getMetrics() {
@@ -215,7 +200,7 @@ public class QueryRequest {
 
     @JsonIgnore
     public String getTargetName() {
-        return dataset != null && !dataset.isBlank() ? dataset : table;
+        return isDirectQuery() ? table : dataset;
     }
 
     private List<FilterRequest> flattenSimpleFilters(FilterNode node) {

@@ -1,5 +1,7 @@
 package br.com.lucast.atlas_query_engine.core.translator;
 
+import br.com.lucast.atlas_query_engine.core.model.LogicalOperator;
+import br.com.lucast.atlas_query_engine.core.model.JoinType;
 import br.com.lucast.atlas_query_engine.core.model.ColumnExpression;
 import br.com.lucast.atlas_query_engine.core.model.ExistsFilterRequest;
 import br.com.lucast.atlas_query_engine.core.model.FilterGroupRequest;
@@ -54,11 +56,11 @@ class DirectSqlTranslatorTest {
         ));
         request.setJoins(List.of(
                 new JoinRequest("public", "customer_company_address", "cca",
-                        br.com.lucast.atlas_query_engine.core.model.JoinType.LEFT,
+                        JoinType.LEFT,
                         "cc.id", "cca.customer_company_id")
         ));
         request.setFilterTree(new FilterGroupRequest(
-                br.com.lucast.atlas_query_engine.core.model.LogicalOperator.AND,
+                LogicalOperator.AND,
                 List.of(
                         new FilterRequest("cc.active", FilterOperator.EQUALS, true),
                         new FilterRequest("cca.state_uf", FilterOperator.IN, List.of("SP", "RJ", "MG"))
@@ -110,13 +112,13 @@ class DirectSqlTranslatorTest {
         )));
         request.setMetrics(List.of(metric));
         request.setFilterTree(new FilterGroupRequest(
-                br.com.lucast.atlas_query_engine.core.model.LogicalOperator.AND,
+                LogicalOperator.AND,
                 List.of(
                         new ExistsFilterRequest(
                                 null,
                                 "customer_company_address",
                                 "cca",
-                                br.com.lucast.atlas_query_engine.core.model.JoinType.INNER,
+                                JoinType.INNER,
                                 "cc.id",
                                 "cca.customer_company_id",
                                 List.of(),

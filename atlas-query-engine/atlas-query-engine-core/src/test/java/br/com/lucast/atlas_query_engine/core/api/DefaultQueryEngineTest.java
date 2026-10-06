@@ -1,5 +1,6 @@
 package br.com.lucast.atlas_query_engine.core.api;
 
+import br.com.lucast.atlas_query_engine.core.support.TestDatasets;
 import br.com.lucast.atlas_query_engine.core.catalog.InMemoryDatasetCatalog;
 import br.com.lucast.atlas_query_engine.core.executor.QueryExecutor;
 import br.com.lucast.atlas_query_engine.core.model.FilterOperator;
@@ -31,8 +32,8 @@ class DefaultQueryEngineTest {
         CapturingExecutor executor = new CapturingExecutor();
         DefaultQueryEngine queryEngine = new DefaultQueryEngine(
                 new QueryParser(),
-                new QueryValidator(new InMemoryDatasetCatalog(), Validation.buildDefaultValidatorFactory().getValidator()),
-                new ExecutionPlanner(new InMemoryDatasetCatalog()),
+                new QueryValidator(new InMemoryDatasetCatalog(TestDatasets.definitions()), Validation.buildDefaultValidatorFactory().getValidator()),
+                new ExecutionPlanner(new InMemoryDatasetCatalog(TestDatasets.definitions())),
                 new SqlTranslator(),
                 new StaticSqlDialectResolver(new PostgresSqlDialect()),
                 executor

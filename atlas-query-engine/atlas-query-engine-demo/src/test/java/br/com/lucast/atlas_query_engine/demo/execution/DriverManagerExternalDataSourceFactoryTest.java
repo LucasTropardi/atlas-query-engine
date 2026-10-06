@@ -50,6 +50,21 @@ class DriverManagerExternalDataSourceFactoryTest {
                 .hasMessage("Host must not be blank");
     }
 
+    @Test
+    void shouldReplaceCachedDatasourceWhenCredentialsOrDestinationChange() {
+        ConnectionDefinition initial = connectionDefinition(DatabaseType.POSTGRES);
+        var first = factory.create(initial);
+        assertThat(factory.create(initial)).isSameAs(first);
+        ConnectionDefinition changed = new ConnectionDefinition(initial.connectionKey(), DatabaseType.MYSQL,
+                "new-host", 3306, "new-db", "new-user", "new-password");
+        var replacement = (org.springframework.jdbc.datasource.DriverManagerDataSource) factory.create(changed);
+        assertThat(replacement).isNotSameAs(first);
+        assertThat(replacement.getUrl()).isEqualTo("jdbc:mysql://new-host:3306/new-db");
+        assertThat(replacement.getUsername()).isEqualTo("new-user");
+        assertThat(replacement.getPassword()).isEqualTo("new-password");
+        assertThat(factory.create(changed)).isSameAs(replacement);
+    }
+
     private ConnectionDefinition connectionDefinition(DatabaseType databaseType) {
         return new ConnectionDefinition(
                 "analytics_pg",

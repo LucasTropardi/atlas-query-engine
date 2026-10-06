@@ -5,8 +5,6 @@ import br.com.lucast.atlas_query_engine.core.result.QueryMetadata;
 import br.com.lucast.atlas_query_engine.core.result.QueryResult;
 import br.com.lucast.atlas_query_engine.core.translator.SqlQuery;
 import java.sql.PreparedStatement;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
@@ -28,8 +26,6 @@ public class JdbcQueryExecutor implements QueryExecutor {
         long startTime = System.nanoTime();
         LOGGER.info("Executing JDBC query for target={}", request.getTargetName());
         LOGGER.debug("Generated SQL: {}", sqlQuery.getSql());
-        LOGGER.debug("SQL params: {}", sqlQuery.getParameters());
-        LOGGER.debug("Rendered SQL (debug only): {}", renderSqlWithParams(sqlQuery.getSql(), sqlQuery.getParameters()));
 
         QueryResult result = jdbcTemplate.query(con -> {
             PreparedStatement statement = con.prepareStatement(sqlQuery.getSql());
@@ -75,25 +71,4 @@ public class JdbcQueryExecutor implements QueryExecutor {
         return safeResult;
     }
 
-    static String renderSqlWithParams(String sql, List<Object> params) {
-        String rendered = sql;
-        for (Object param : params) {
-            rendered = rendered.replaceFirst("\\?", formatParamForSql(param));
-        }
-        return rendered;
-    }
-
-    private static String formatParamForSql(Object param) {
-        if (param == null) {
-            return "null";
-        }
-        if (param instanceof Number) {
-            return param.toString();
-        }
-        if (param instanceof LocalDate || param instanceof LocalDateTime) {
-            return "'" + param + "'";
-        }
-        String escaped = String.valueOf(param).replace("'", "''");
-        return "'" + escaped + "'";
-    }
 }

@@ -88,3 +88,47 @@ Payload de exemplo:
 ```
 
 O formato legado continua aceitando `filters` como lista simples. Internamente ele e normalizado para um grupo `AND`.
+
+## Contrato de consultas
+
+Informe exatamente um destino: `dataset` ou `table`.
+
+- `dataset`: campos logicos, metricas e relacoes definidos no catalogo. Projecoes,
+  expressoes, joins explicitos, `schema`, `alias` e filtros `EXISTS` sao rejeitados
+  neste modo, em vez de serem ignorados.
+- `table`: consulta direta com schema, alias, joins, projecoes, expressoes e
+  `EXISTS`. Ao combinar projecoes com metricas, inclua em `groupBy` todas as
+  colunas referenciadas pelas projecoes. Literais nao exigem agrupamento.
+
+Filtros em lista continuam aceitos como entrada e sao convertidos para uma
+unica arvore `AND`. A serializacao de `QueryRequest` usa a arvore canonica.
+Na API Java, use `setFilters(...)` ou `setFilterTree(...)` para atualizar filtros;
+`getFilters()` fornece uma lista de leitura dos filtros simples.
+
+## Catalogo reutilizavel
+
+`new InMemoryDatasetCatalog()` cria um catalogo vazio. Para registrar datasets,
+use `new InMemoryDatasetCatalog(definitions)`, passando uma colecao de
+`DatasetDefinition`. Nomes duplicados sao rejeitados. Os datasets de laboratorio
+ficam em `DemoDatasets`, no modulo demo; o core nao registra exemplos automaticamente.
+
+## Execucao e diagnostico
+
+O demo resolve a conexao uma vez por consulta, usando a mesma configuracao para
+selecionar o dialeto e executar o SQL. O cache de datasources e renovado quando
+a configuracao da conexao muda. Ele continua usando `DriverManagerDataSource`,
+sem pool de conexoes externas.
+
+O engine registra destino, duracao e quantidade de linhas. O SQL com placeholders
+fica em DEBUG; parametros e SQL interpolado nao sao registrados pelo engine.
+
+## Testes
+
+```bash
+./mvnw test
+```
+
+A suite inclui testes de pipeline JSON -> engine -> JDBC com H2, correlacao de
+`EXISTS` com `OR`, parametros contendo `$` e barras, validacao por modo e
+configuracao Spring. Esses testes nao substituem validacao com bancos reais
+PostgreSQL, MySQL e Oracle.

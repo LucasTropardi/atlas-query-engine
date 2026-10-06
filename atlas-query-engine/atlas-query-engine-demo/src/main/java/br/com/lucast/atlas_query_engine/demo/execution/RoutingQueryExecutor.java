@@ -2,6 +2,8 @@ package br.com.lucast.atlas_query_engine.demo.execution;
 
 import br.com.lucast.atlas_query_engine.core.executor.JdbcQueryExecutor;
 import br.com.lucast.atlas_query_engine.core.executor.QueryExecutor;
+import br.com.lucast.atlas_query_engine.core.executor.QueryExecutionResolver;
+import br.com.lucast.atlas_query_engine.core.executor.ResolvedQueryExecution;
 import br.com.lucast.atlas_query_engine.core.model.QueryRequest;
 import br.com.lucast.atlas_query_engine.core.result.QueryResult;
 import br.com.lucast.atlas_query_engine.core.translator.SqlQuery;
@@ -13,20 +15,32 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
-public class RoutingQueryExecutor implements QueryExecutor {
+public class RoutingQueryExecutor implements QueryExecutor, QueryExecutionResolver {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(RoutingQueryExecutor.class);
 
     private final QueryExecutionConnectionResolver connectionResolver;
 
-    public RoutingQueryExecutor(QueryExecutionConnectionResolver connectionResolver) {
+    private final DefaultSqlDialectResolver dialectResolver;
+
+    public RoutingQueryExecutor(QueryExecutionConnectionResolver connectionResolver, DefaultSqlDialectResolver dialectResolver) {
         this.connectionResolver = connectionResolver;
+        this.dialectResolver = dialectResolver;
+    }
+
+    @Override
+    public ResolvedQueryExecution resolve(QueryRequest request) {
+        QueryExecutionContext context = connectionResolver.resolve(request);
+        return new ResolvedQueryExecution(dialectResolver.resolve(context.dbType()),
+                (query, sql) -> execute(context, query, sql));
     }
 
     @Override
     public QueryResult execute(QueryRequest request, SqlQuery sqlQuery) {
-        QueryExecutionContext context = connectionResolver.resolve(request);
+        return resolve(request).executor().execute(request, sqlQuery);
+    }
 
+    private QueryResult execute(QueryExecutionContext context, QueryRequest request, SqlQuery sqlQuery) {
         try {
             if (context.external()) {
                 LOGGER.info(

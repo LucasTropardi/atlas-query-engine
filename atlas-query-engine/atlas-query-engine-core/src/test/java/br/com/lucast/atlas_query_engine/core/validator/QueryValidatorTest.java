@@ -1,5 +1,10 @@
 package br.com.lucast.atlas_query_engine.core.validator;
 
+import br.com.lucast.atlas_query_engine.core.model.ProjectionRequest;
+import br.com.lucast.atlas_query_engine.core.model.JoinType;
+import br.com.lucast.atlas_query_engine.core.model.ExistsFilterRequest;
+import br.com.lucast.atlas_query_engine.core.model.ColumnExpression;
+import br.com.lucast.atlas_query_engine.core.support.TestDatasets;
 import br.com.lucast.atlas_query_engine.core.catalog.InMemoryDatasetCatalog;
 import br.com.lucast.atlas_query_engine.core.exception.DatasetNotFoundException;
 import br.com.lucast.atlas_query_engine.core.exception.FieldNotAllowedException;
@@ -22,7 +27,7 @@ class QueryValidatorTest {
 
     private final QueryParser parser = new QueryParser();
     private final QueryValidator validator = new QueryValidator(
-            new InMemoryDatasetCatalog(),
+            new InMemoryDatasetCatalog(TestDatasets.definitions()),
             Validation.buildDefaultValidatorFactory().getValidator()
     );
 
@@ -53,7 +58,7 @@ class QueryValidatorTest {
         QueryRequest request = new QueryRequest();
         request.setDataset("orders");
         request.getSelect().add("country");
-        request.getFilters().add(new FilterRequest("createdAt", FilterOperator.BETWEEN, "2026-01-01"));
+        request.setFilters(List.of(new FilterRequest("createdAt", FilterOperator.BETWEEN, "2026-01-01")));
 
         assertThatThrownBy(() -> validator.validate(parser.parse(request)))
                 .isInstanceOf(InvalidQueryException.class)
@@ -105,4 +110,26 @@ class QueryValidatorTest {
                 .isInstanceOf(FieldNotAllowedException.class)
                 .hasMessageContaining("Selected field does not exist");
     }
+    @Test
+    void shouldRejectDirectFeaturesInDatasetQueries() {
+        QueryRequest request = new QueryRequest();
+        request.setDataset("orders");
+        request.setProjections(List.of(new ProjectionRequest(
+                "country", new ColumnExpression("country"))));
+        assertThatThrownBy(() -> validator.validate(parser.parse(request)))
+                .isInstanceOf(InvalidQueryException.class).hasMessageContaining("Dataset queries do not support");
+    }
+
+    @Test
+    void shouldRejectExistsInDatasetQueriesRatherThanIgnoreIt() {
+        QueryRequest request = new QueryRequest();
+        request.setDataset("orders");
+        request.setSelect(List.of("country"));
+        request.setFilterTree(new ExistsFilterRequest(
+                null, "customers", null, JoinType.INNER,
+                "orders.customer_id", "customers.id", List.of(), FilterGroupRequest.empty()));
+        assertThatThrownBy(() -> validator.validate(parser.parse(request)))
+                .isInstanceOf(InvalidQueryException.class).hasMessageContaining("Unsupported filter node for dataset");
+    }
+
 }
