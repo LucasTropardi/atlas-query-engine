@@ -2,7 +2,7 @@
 
 **Motor de consultas declarativas que transforma JSON em SQL parametrizado e executa consultas em bancos relacionais.**
 
-O Atlas Query Engine permite que uma aplicação descreva os dados que deseja consultar — campos, filtros, métricas, agrupamento, ordenação e paginação — por meio de um contrato JSON. O engine normaliza e valida essa descrição, gera o SQL de acordo com o dialeto do banco e devolve colunas, linhas e metadados da execução.
+O Atlas Query Engine permite que uma aplicação descreva os dados que deseja consultar como campos, filtros, métricas, agrupamento, ordenação e paginação, por meio de um contrato JSON. O engine normaliza e valida essa descrição, gera o SQL de acordo com o dialeto do banco e devolve colunas, linhas e metadados da execução.
 
 O projeto reúne uma biblioteca Java reutilizável e uma aplicação Spring Boot que expõe o motor por HTTP e demonstra seu uso com conexões locais e externas.
 
