@@ -87,6 +87,14 @@ public class ApiExceptionHandler {
                 "Unexpected database error while executing the query", request.getRequestURI());
     }
 
+    @ExceptionHandler(org.springframework.web.server.ResponseStatusException.class)
+    public ResponseEntity<ApiErrorResponse> handleResponseStatus(
+            org.springframework.web.server.ResponseStatusException exception, HttpServletRequest request) {
+        return ResponseEntity.status(exception.getStatusCode()).body(new ApiErrorResponse(
+                "http_error", exception.getReason(), Instant.now(), request.getRequestURI(),
+                exception.getStatusCode().value()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleUnexpectedException(
             Exception exception,

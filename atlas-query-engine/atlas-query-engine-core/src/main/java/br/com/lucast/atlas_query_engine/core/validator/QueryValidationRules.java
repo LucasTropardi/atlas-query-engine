@@ -36,8 +36,17 @@ final class QueryValidationRules {
         FilterOperator operator = filter.getOperator();
         Object value = filter.getValue();
 
-        if (operator == FilterOperator.IN && !isCollectionLike(value)) {
-            throw new InvalidQueryException("IN operator requires a collection value for field " + filter.getField());
+        if (operator == FilterOperator.IS_NULL || operator == FilterOperator.IS_NOT_NULL) {
+            if (value != null) {
+                throw new InvalidQueryException("Null operators do not accept a value");
+            }
+            return;
+        }
+        if (value == null) {
+            throw new InvalidQueryException("Filter value is required; use is null or is not null for null checks");
+        }
+        if ((operator == FilterOperator.IN || operator == FilterOperator.NOT_IN) && !isCollectionLike(value)) {
+            throw new InvalidQueryException("IN/NOT IN operator requires a collection value for field " + filter.getField());
         }
         if (operator == FilterOperator.BETWEEN && !hasTwoValues(value)) {
             throw new InvalidQueryException("BETWEEN operator requires exactly two values for field " + filter.getField());

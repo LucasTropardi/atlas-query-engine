@@ -28,8 +28,9 @@ public class DirectSqlTranslator {
     public SqlQuery translate(QueryRequest request, SqlDialect sqlDialect) {
         List<Object> parameters = new ArrayList<>();
         SqlQueryBuilder builder = new SqlQueryBuilder()
+                .distinct(request.isDistinct())
                 .from(buildFromClause(request, sqlDialect))
-                .pagination(sqlDialect.renderPagination(request.getPageSize(), (request.getPage() - 1) * request.getPageSize()));
+                .pagination(sqlDialect.renderPagination(request.getPageSize() + 1, request.getOffset()));
 
         request.getSelect().stream()
                 .map(field -> quoteReference(field, sqlDialect))
@@ -62,6 +63,14 @@ public class DirectSqlTranslator {
                     .map(field -> quoteReference(field, sqlDialect))
                     .forEach(builder::addGroupBy);
         }
+
+        builder.having(HavingSqlRenderer.render(request.getHaving(), parameters, alias -> {
+            MetricRequest metric = request.getMetrics().stream().filter(item -> alias.equals(item.getAlias()))
+                    .findFirst().orElseThrow(() -> new InvalidQueryException("Unknown HAVING metric: " + alias));
+            String target = metric.getExpression() == null ? quoteReference(metric.getField(), sqlDialect)
+                    : renderExpression(metric.getExpression(), parameters, sqlDialect);
+            return metric.getOperation().getSqlFunction() + "(" + target + ")";
+        }));
 
         Set<String> metricAliases = request.getMetrics().stream()
                 .map(MetricRequest::getAlias)
@@ -128,6 +137,8 @@ public class DirectSqlTranslator {
         Object value = filter.getValue();
 
         return switch (filter.getOperator()) {
+            case IS_NULL -> column + " IS NULL";
+            case IS_NOT_NULL -> column + " IS NOT NULL";
             case EQUALS -> appendSingleValue(parameters, column + " = ?", value);
             case NOT_EQUALS -> appendSingleValue(parameters, column + " != ?", value);
             case GREATER_THAN -> appendSingleValue(parameters, column + " > ?", value);
@@ -135,7 +146,7 @@ public class DirectSqlTranslator {
             case LESS_THAN -> appendSingleValue(parameters, column + " < ?", value);
             case LESS_THAN_OR_EQUAL -> appendSingleValue(parameters, column + " <= ?", value);
             case LIKE -> appendSingleValue(parameters, column + " LIKE ?", value);
-            case IN -> buildInClause(column, filter, value, parameters);
+            case IN, NOT_IN -> buildInClause(column, filter, value, parameters);
             case BETWEEN -> buildBetweenClause(column, filter, value, parameters);
         };
     }
@@ -174,7 +185,7 @@ public class DirectSqlTranslator {
         }
         parameters.addAll(values);
         String placeholders = values.stream().map(ignored -> "?").collect(Collectors.joining(", "));
-        return column + " IN (" + placeholders + ")";
+        return column + (filter.getOperator() == FilterOperator.NOT_IN ? " NOT IN (" : " IN (") + placeholders + ")";
     }
 
     private String buildBetweenClause(String column, FilterRequest filter, Object value, List<Object> parameters) {

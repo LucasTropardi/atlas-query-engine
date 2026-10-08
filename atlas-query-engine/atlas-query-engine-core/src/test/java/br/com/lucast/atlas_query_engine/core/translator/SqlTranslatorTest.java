@@ -51,7 +51,7 @@ class SqlTranslatorTest {
         assertThat(sqlQuery.getSql()).isEqualTo(
                 "SELECT t0.country AS \"country\", t0.status AS \"status\", COUNT(t0.id) AS \"ordersCount\", "
                         + "SUM(t0.amount) AS \"totalAmount\" FROM public.orders t0 WHERE t0.status = ? AND t0.created_at >= ? "
-                        + "GROUP BY t0.country, t0.status ORDER BY \"totalAmount\" DESC LIMIT 50 OFFSET 0"
+                        + "GROUP BY t0.country, t0.status ORDER BY \"totalAmount\" DESC LIMIT 51 OFFSET 0"
         );
         assertThat(sqlQuery.getParameters()).containsExactly("PAID", LocalDate.parse("2026-01-01"));
     }
@@ -242,7 +242,7 @@ class SqlTranslatorTest {
                 "SELECT t0.country AS \"country\", COUNT(t0.id) AS \"orders\" FROM public.orders t0 "
                         + "LEFT JOIN public.customers t1 ON t0.customer_id = t1.id "
                         + "WHERE t0.status = ? AND (t0.country IN (?, ?) OR t0.created_at BETWEEN ? AND ?) AND t1.name LIKE ? "
-                        + "GROUP BY t0.country ORDER BY \"orders\" DESC LIMIT 50 OFFSET 0"
+                        + "GROUP BY t0.country ORDER BY \"orders\" DESC LIMIT 51 OFFSET 0"
         );
         assertThat(sqlQuery.getParameters()).containsExactly(
                 "PAID",
@@ -269,7 +269,7 @@ class SqlTranslatorTest {
         assertThat(sqlQuery.getSql()).isEqualTo(
                 "SELECT t0.country AS \"country\", t1.name AS \"customerName\", SUM(t0.amount) AS \"revenue\" "
                         + "FROM public.orders t0 LEFT JOIN public.customers t1 ON t0.customer_id = t1.id "
-                        + "GROUP BY t0.country, t1.name LIMIT 50 OFFSET 0"
+                        + "GROUP BY t0.country, t1.name LIMIT 51 OFFSET 0"
         );
     }
 
@@ -320,7 +320,7 @@ class SqlTranslatorTest {
                         + "t1.city_name AS \"cityName\", t1.city_ibge AS \"cityIbge\", t1.state_uf AS \"stateUf\", "
                         + "t1.country AS \"country\" FROM public.customer_companies t0 "
                         + "LEFT JOIN public.customer_company_address t1 ON t0.id = t1.customer_company_id "
-                        + "WHERE t0.active = ? AND t1.state_uf IN (?, ?, ?) ORDER BY t0.legal_name ASC LIMIT 100 OFFSET 0"
+                        + "WHERE t0.active = ? AND t1.state_uf IN (?, ?, ?) ORDER BY t0.legal_name ASC LIMIT 101 OFFSET 0"
         );
         assertThat(sqlQuery.getParameters()).containsExactly(true, "SP", "RJ", "MG");
     }
@@ -340,7 +340,7 @@ class SqlTranslatorTest {
         assertThat(sqlQuery.getSql()).isEqualTo(
                 "SELECT t0.country AS `country`, t1.name AS `customerName`, SUM(t0.amount) AS `revenue` "
                         + "FROM public.orders t0 LEFT JOIN public.customers t1 ON t0.customer_id = t1.id "
-                        + "GROUP BY t0.country, t1.name LIMIT 50 OFFSET 0"
+                        + "GROUP BY t0.country, t1.name LIMIT 51 OFFSET 0"
         );
     }
 
@@ -359,7 +359,7 @@ class SqlTranslatorTest {
 
         assertThat(sqlQuery.getSql()).isEqualTo(
                 "SELECT t0.country AS \"country\", COUNT(t0.id) AS \"orders\" FROM public.orders t0 "
-                        + "GROUP BY t0.country ORDER BY \"orders\" DESC OFFSET 0 ROWS FETCH NEXT 50 ROWS ONLY"
+                        + "GROUP BY t0.country ORDER BY \"orders\" DESC OFFSET 0 ROWS FETCH NEXT 51 ROWS ONLY"
         );
     }
 

@@ -77,7 +77,7 @@ public class ExecutionPlanner {
                 sortBindings,
                 new ArrayList<>(joinsByRelation.values()),
                 request.getPageSize(),
-                (request.getPage() - 1) * request.getPageSize()
+                request.getOffset()
         );
     }
 

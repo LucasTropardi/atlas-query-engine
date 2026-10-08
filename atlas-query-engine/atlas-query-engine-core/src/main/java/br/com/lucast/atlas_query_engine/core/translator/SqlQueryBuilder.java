@@ -2,7 +2,6 @@ package br.com.lucast.atlas_query_engine.core.translator;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.StringJoiner;
 
 class SqlQueryBuilder {
 
@@ -13,6 +12,18 @@ class SqlQueryBuilder {
     private final List<String> groupByColumns = new ArrayList<>();
     private final List<String> orderByColumns = new ArrayList<>();
     private String paginationClause;
+    private boolean distinct;
+    private String havingClause;
+
+    SqlQueryBuilder distinct(boolean distinct) {
+        this.distinct = distinct;
+        return this;
+    }
+
+    SqlQueryBuilder having(String clause) {
+        this.havingClause = clause;
+        return this;
+    }
 
     SqlQueryBuilder addSelect(String expression) {
         selectColumns.add(expression);
@@ -51,7 +62,7 @@ class SqlQueryBuilder {
 
     String build() {
         StringBuilder sql = new StringBuilder();
-        sql.append("SELECT ").append(String.join(", ", selectColumns));
+        sql.append(distinct ? "SELECT DISTINCT " : "SELECT ").append(String.join(", ", selectColumns));
         sql.append(" FROM ").append(fromClause);
         if (!joinClauses.isEmpty()) {
             sql.append(" ").append(String.join(" ", joinClauses));
@@ -62,6 +73,9 @@ class SqlQueryBuilder {
         }
         if (!groupByColumns.isEmpty()) {
             sql.append(" GROUP BY ").append(String.join(", ", groupByColumns));
+        }
+        if (havingClause != null && !havingClause.isBlank()) {
+            sql.append(" HAVING ").append(havingClause);
         }
         if (!orderByColumns.isEmpty()) {
             sql.append(" ORDER BY ").append(String.join(", ", orderByColumns));

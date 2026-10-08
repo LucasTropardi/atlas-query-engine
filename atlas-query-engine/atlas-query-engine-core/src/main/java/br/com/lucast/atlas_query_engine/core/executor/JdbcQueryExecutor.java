@@ -42,7 +42,12 @@ public class JdbcQueryExecutor implements QueryExecutor {
             }
 
             List<List<Object>> rows = new ArrayList<>();
+            boolean hasNext = false;
             while (rs.next()) {
+                if (rows.size() == request.getPageSize()) {
+                    hasNext = true;
+                    break;
+                }
                 List<Object> row = new ArrayList<>(columnCount);
                 for (int index = 1; index <= columnCount; index++) {
                     row.add(rs.getObject(index));
@@ -56,7 +61,8 @@ public class JdbcQueryExecutor implements QueryExecutor {
                     executionTimeMs,
                     request.getPage(),
                     request.getPageSize(),
-                    rows.size()
+                    rows.size(),
+                    hasNext
             );
             return new QueryResult(columns, rows, metadata);
         });

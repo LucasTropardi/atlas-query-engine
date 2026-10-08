@@ -12,7 +12,10 @@ public enum FilterOperator {
     LESS_THAN_OR_EQUAL("<="),
     LIKE("like"),
     IN("in"),
-    BETWEEN("between");
+    NOT_IN("not in"),
+    BETWEEN("between"),
+    IS_NULL("is null"),
+    IS_NOT_NULL("is not null");
 
     private final String value;
 

@@ -41,6 +41,10 @@ public class QueryValidator {
             throw new InvalidQueryException("Query must define exactly one of dataset or table");
         }
 
+        request.getOffset();
+        HavingValidator.validate(request);
+        validateDistinctSort(request);
+
         if (request.isDirectQuery()) {
             directValidator.validate(request);
             validateMetricGroupingConsistency(request);
@@ -55,4 +59,15 @@ public class QueryValidator {
         return dataset;
     }
 
+    private void validateDistinctSort(QueryRequest request) {
+        if (!request.isDistinct()) return;
+        Set<String> selected = new java.util.HashSet<>(request.getSelect());
+        request.getProjections().forEach(projection -> selected.add(projection.getAlias()));
+        request.getMetrics().forEach(metric -> selected.add(metric.getAlias()));
+        for (var sort : request.getSort()) {
+            if (sort.getExpression() != null || !selected.contains(sort.getField())) {
+                throw new InvalidQueryException("DISTINCT sort must reference a selected field or output alias");
+            }
+        }
+    }
 }

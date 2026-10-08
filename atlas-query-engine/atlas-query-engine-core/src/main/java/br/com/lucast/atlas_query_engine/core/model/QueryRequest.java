@@ -15,6 +15,32 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 public class QueryRequest {
 
+    private boolean distinct;
+
+    @NotNull
+    @Valid
+    private FilterNode having = FilterGroupRequest.empty();
+
+    public boolean isDistinct() { return distinct; }
+
+    public void setDistinct(boolean distinct) { this.distinct = distinct; }
+
+    public FilterNode getHaving() { return having; }
+
+    public void setHaving(FilterNode having) {
+        this.having = having == null ? FilterGroupRequest.empty() : having;
+    }
+
+    /** Offset is based on the public page size, never the extra look-ahead row. */
+    @JsonIgnore
+    public int getOffset() {
+        try {
+            return Math.multiplyExact(Math.subtractExact(page, 1), pageSize);
+        } catch (ArithmeticException exception) {
+            throw new br.com.lucast.atlas_query_engine.core.exception.InvalidQueryException("Pagination offset exceeds supported range");
+        }
+    }
+
     private String connection;
 
     private String dataset;

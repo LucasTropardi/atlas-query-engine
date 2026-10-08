@@ -95,4 +95,37 @@ class QueryPipelineRegressionTest {
         assertThatThrownBy(() -> engine.execute(request)).isInstanceOf(InvalidQueryException.class)
                 .hasMessageContaining("operator");
     }
+
+    @Test
+    void shouldExecuteNullChecksWithNestedGroupsAndExpressions() {
+        new JdbcTemplate(database).execute("INSERT INTO \"orders\" VALUES (3, NULL)");
+        QueryRequest request = new ObjectMapper().readValue("""
+                {"table":"orders","select":["customer_id"],"filters":{
+                  "operator":"AND","conditions":[
+                    {"field":"status","operator":"IS NULL"},
+                    {"field":"customer_id","operator":">","value":1}
+                  ]}}
+                """, QueryRequest.class);
+        assertThat(engine.execute(request).getRows()).containsExactly(List.of(3));
+        FilterRequest expressionFilter = new FilterRequest();
+        expressionFilter.setExpression(new FunctionExpression("coalesce", List.of(
+                new ColumnExpression("status"), new LiteralExpression("fallback"))));
+        expressionFilter.setOperator(FilterOperator.IS_NOT_NULL);
+        request.setFilterTree(expressionFilter);
+        assertThat(engine.preview(request).parameters()).hasSize(1);
+        assertThat(engine.execute(request).getRows()).hasSize(3);
+    }
+
+    @Test
+    void shouldRejectMissingValuesForBinaryOperatorsAndExtraneousNullCheckValues() {
+        QueryRequest request = new QueryRequest();
+        request.setTable("orders");
+        request.setSelect(List.of("customer_id"));
+        request.setFilters(List.of(new FilterRequest("status", FilterOperator.EQUALS, null)));
+        assertThatThrownBy(() -> engine.preview(request)).isInstanceOf(InvalidQueryException.class)
+                .hasMessageContaining("value is required");
+        request.setFilters(List.of(new FilterRequest("status", FilterOperator.IS_NULL, "ignored")));
+        assertThatThrownBy(() -> engine.preview(request)).isInstanceOf(InvalidQueryException.class)
+                .hasMessageContaining("do not accept a value");
+    }
 }

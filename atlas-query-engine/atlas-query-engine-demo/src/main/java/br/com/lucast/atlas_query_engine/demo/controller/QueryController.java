@@ -3,6 +3,7 @@ package br.com.lucast.atlas_query_engine.demo.controller;
 import br.com.lucast.atlas_query_engine.core.api.QueryEngine;
 import br.com.lucast.atlas_query_engine.core.model.QueryRequest;
 import br.com.lucast.atlas_query_engine.core.result.QueryResult;
+import br.com.lucast.atlas_query_engine.core.result.QueryPreview;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -22,5 +23,9 @@ public class QueryController {
     @PostMapping
     public QueryResult execute(@Valid @RequestBody QueryRequest request) {
         return queryEngine.execute(request);
+    }
+    @PostMapping("/preview")
+    public QueryPreview preview(@Valid @RequestBody QueryRequest request) {
+        return queryEngine.preview(request);
     }
 }

@@ -14,9 +14,10 @@ public class SqlTranslator {
     public SqlQuery translate(ExecutionPlan plan, SqlDialect sqlDialect) {
         List<Object> parameters = new ArrayList<>();
         SqlQueryBuilder builder = new SqlQueryBuilder()
+                .distinct(plan.getRequest().isDistinct())
                 .from(sqlDialect.qualifyTable(plan.getDataset().getSchemaName(), plan.getDataset().getTableName())
                         + " " + plan.getBaseAlias())
-                .pagination(sqlDialect.renderPagination(plan.getLimit(), plan.getOffset()));
+                .pagination(sqlDialect.renderPagination(plan.getLimit() + 1, plan.getOffset()));
 
         buildSelectClause(plan, sqlDialect).forEach(builder::addSelect);
         plan.getJoins().stream()
@@ -33,6 +34,13 @@ public class SqlTranslator {
                     .map(ExecutionPlan.DimensionBinding::qualifiedColumn)
                     .forEach(builder::addGroupBy);
         }
+
+        builder.having(HavingSqlRenderer.render(plan.getRequest().getHaving(), parameters, alias -> {
+            ExecutionPlan.MetricBinding metric = plan.getMetrics().stream()
+                    .filter(item -> alias.equals(item.request().getAlias())).findFirst()
+                    .orElseThrow(() -> new InvalidQueryException("Unknown HAVING metric: " + alias));
+            return metric.request().getOperation().getSqlFunction() + "(" + metric.qualifiedColumn() + ")";
+        }));
 
         plan.getSortBindings().stream()
                 .map(sort -> sort.metricSort()
@@ -80,6 +88,8 @@ public class SqlTranslator {
         String fieldName = filterBinding.dimensionBinding().dimension().getLogicalName();
 
         return switch (operator) {
+            case IS_NULL -> column + " IS NULL";
+            case IS_NOT_NULL -> column + " IS NOT NULL";
             case EQUALS -> appendSingleValue(parameters, column + " = ?",
                     convertValue(filterBinding, value, fieldName));
             case NOT_EQUALS -> appendSingleValue(parameters, column + " != ?",
@@ -94,7 +104,7 @@ public class SqlTranslator {
                     convertValue(filterBinding, value, fieldName));
             case LIKE -> appendSingleValue(parameters, column + " LIKE ?",
                     convertValue(filterBinding, value, fieldName));
-            case IN -> buildInClause(column, filterBinding, value, parameters);
+            case IN, NOT_IN -> buildInClause(column, filterBinding, value, parameters);
             case BETWEEN -> buildBetweenClause(column, filterBinding, value, parameters);
         };
     }
@@ -114,7 +124,7 @@ public class SqlTranslator {
         }
         parameters.addAll(values);
         String placeholders = values.stream().map(ignored -> "?").collect(Collectors.joining(", "));
-        return column + " IN (" + placeholders + ")";
+        return column + (filterBinding.request().getOperator() == FilterOperator.NOT_IN ? " NOT IN (" : " IN (") + placeholders + ")";
     }
 
     private String buildBetweenClause(String column, ExecutionPlan.FilterBinding filterBinding, Object value, List<Object> parameters) {

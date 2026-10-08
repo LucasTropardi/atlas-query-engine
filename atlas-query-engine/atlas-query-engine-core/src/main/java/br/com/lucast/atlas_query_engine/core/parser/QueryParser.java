@@ -22,6 +22,8 @@ public class QueryParser {
             throw new InvalidQueryException("Query is required");
         }
         QueryRequest normalized = new QueryRequest();
+        normalized.setDistinct(request.isDistinct());
+        normalized.setHaving(normalizeFilterNode(request.getHaving()));
         normalized.setDataset(trimToNull(request.getDataset()));
         normalized.setSchema(trimToNull(request.getSchema()));
         normalized.setTable(trimToNull(request.getTable()));

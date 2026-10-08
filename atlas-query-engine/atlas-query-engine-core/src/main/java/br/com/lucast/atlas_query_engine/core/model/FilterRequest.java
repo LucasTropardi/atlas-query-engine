@@ -1,6 +1,5 @@
 package br.com.lucast.atlas_query_engine.core.model;
 
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -20,7 +19,6 @@ public class FilterRequest implements FilterNode {
     @NotNull
     private FilterOperator operator;
 
-    @NotNull
     private Object value;
 
     public FilterRequest(String field, FilterOperator operator, Object value) {

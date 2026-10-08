@@ -14,6 +14,10 @@ import br.com.lucast.atlas_query_engine.core.translator.SqlQuery;
 import br.com.lucast.atlas_query_engine.core.translator.SqlTranslator;
 import br.com.lucast.atlas_query_engine.core.translator.DirectSqlTranslator;
 import br.com.lucast.atlas_query_engine.core.validator.QueryValidator;
+import br.com.lucast.atlas_query_engine.core.result.QueryPreview;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.IntStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -60,23 +64,54 @@ public class DefaultQueryEngine implements QueryEngine {
     public QueryResult execute(QueryRequest request) {
         long startTime = System.nanoTime();
 
-        QueryRequest normalizedRequest = queryParser.parse(request);
-        queryValidator.validate(normalizedRequest);
-        ResolvedQueryExecution execution = executionResolver.resolve(normalizedRequest);
-        SqlDialect sqlDialect = execution.dialect();
-        LOGGER.info("Resolved SQL dialect={} for target={}", sqlDialect.dialectName(), normalizedRequest.getTargetName());
-        SqlQuery sqlQuery;
-        if (normalizedRequest.isDirectQuery()) {
-            sqlQuery = directSqlTranslator.translate(normalizedRequest, sqlDialect);
-        } else {
-            ExecutionPlan executionPlan = executionPlanner.plan(normalizedRequest);
-            sqlQuery = sqlTranslator.translate(executionPlan, sqlDialect);
-        }
-        LOGGER.debug("Generated SQL: {}", sqlQuery.getSql());
+        PreparedQuery prepared = prepare(request);
+        QueryRequest normalizedRequest = prepared.request();
+        ResolvedQueryExecution execution = prepared.execution();
+        SqlQuery sqlQuery = prepared.sql();
 
         QueryResult result = execution.executor().execute(normalizedRequest, sqlQuery);
         long executionTimeMs = (System.nanoTime() - startTime) / 1_000_000;
         LOGGER.info("Finished query for target={} in {} ms", normalizedRequest.getTargetName(), executionTimeMs);
         return result;
     }
+
+    @Override
+    public QueryPreview preview(QueryRequest request) {
+        PreparedQuery prepared = prepare(request);
+        QueryRequest normalized = prepared.request();
+        List<String> fields = new ArrayList<>(normalized.getSelect());
+        normalized.getProjections().forEach(projection -> fields.add(projection.getAlias()));
+        normalized.getMetrics().forEach(metric -> fields.add(metric.getAlias()));
+        List<Object> values = prepared.sql().getParameters();
+        List<QueryPreview.Parameter> parameters = IntStream.range(0, values.size())
+                .mapToObj(index -> new QueryPreview.Parameter(index + 1,
+                        values.get(index) == null ? "null" : values.get(index).getClass().getSimpleName())).toList();
+        return new QueryPreview(normalized.getTargetName(), normalized.isDirectQuery() ? "table" : "dataset",
+                prepared.execution().dialect().dialectName(), prepared.sql().getSql(), parameters, fields, prepared.relations());
+    }
+
+    private PreparedQuery prepare(QueryRequest request) {
+        QueryRequest normalizedRequest = queryParser.parse(request);
+        queryValidator.validate(normalizedRequest);
+        ResolvedQueryExecution execution = executionResolver.resolve(normalizedRequest);
+        SqlDialect sqlDialect = execution.dialect();
+        LOGGER.info("Resolved SQL dialect={} for target={}", sqlDialect.dialectName(), normalizedRequest.getTargetName());
+        SqlQuery sqlQuery;
+        List<String> relations;
+        if (normalizedRequest.isDirectQuery()) {
+            sqlQuery = directSqlTranslator.translate(normalizedRequest, sqlDialect);
+            relations = normalizedRequest.getJoins().stream().map(join ->
+                    (join.getSchema() == null ? "" : join.getSchema() + ".") + join.getTable()).toList();
+        } else {
+            ExecutionPlan executionPlan = executionPlanner.plan(normalizedRequest);
+            sqlQuery = sqlTranslator.translate(executionPlan, sqlDialect);
+            relations = executionPlan.getJoins().stream().map(ExecutionPlan.JoinBinding::relationName).toList();
+        }
+        LOGGER.debug("Generated SQL: {}", sqlQuery.getSql());
+
+        return new PreparedQuery(normalizedRequest, execution, sqlQuery, relations);
+    }
+
+    private record PreparedQuery(QueryRequest request, ResolvedQueryExecution execution,
+                                 SqlQuery sql, List<String> relations) {}
 }

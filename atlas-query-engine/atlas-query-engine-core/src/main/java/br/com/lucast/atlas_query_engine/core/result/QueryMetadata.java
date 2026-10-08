@@ -16,4 +16,9 @@ public class QueryMetadata {
     private int page;
     private int pageSize;
     private int rowCount;
+    private boolean hasNext;
+
+    public QueryMetadata(String dataset, long executionTimeMs, int page, int pageSize, int rowCount) {
+        this(dataset, executionTimeMs, page, pageSize, rowCount, false);
+    }
 }

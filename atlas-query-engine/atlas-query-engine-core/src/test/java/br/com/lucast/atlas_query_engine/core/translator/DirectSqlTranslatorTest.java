@@ -81,7 +81,7 @@ class DirectSqlTranslatorTest {
                         + "FROM public.customer_companies \"cc\" LEFT JOIN public.customer_company_address \"cca\" "
                         + "ON \"cc\".\"id\" = \"cca\".\"customer_company_id\" "
                         + "WHERE \"cc\".\"active\" = ? AND \"cca\".\"state_uf\" IN (?, ?, ?) "
-                        + "ORDER BY \"cc\".\"legal_name\" ASC LIMIT 100 OFFSET 0"
+                        + "ORDER BY \"cc\".\"legal_name\" ASC LIMIT 101 OFFSET 0"
         );
         assertThat(sqlQuery.getParameters()).containsExactly(true, "SP", "RJ", "MG");
     }
@@ -144,7 +144,7 @@ class DirectSqlTranslatorTest {
                         + "FROM \"customer_companies\" \"cc\" "
                         + "WHERE EXISTS (SELECT 1 FROM \"customer_company_address\" \"cca\" "
                         + "WHERE \"cca\".\"customer_company_id\" = \"cc\".\"id\") "
-                        + "ORDER BY COALESCE(\"cc\".\"trade_name\", \"cc\".\"legal_name\") ASC LIMIT 10 OFFSET 0"
+                        + "ORDER BY COALESCE(\"cc\".\"trade_name\", \"cc\".\"legal_name\") ASC LIMIT 11 OFFSET 0"
         );
         assertThat(sqlQuery.getParameters()).containsExactly(0, 10);
     }

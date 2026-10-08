@@ -48,10 +48,10 @@ FROM "public"."orders" t0
 WHERE t0.status = ?
 GROUP BY t0.country
 ORDER BY "totalAmount" DESC
-LIMIT 50 OFFSET 0
+LIMIT 51 OFFSET 0
 ```
 
-O valor `PAID` é enviado separadamente como parâmetro JDBC. A resposta contém os nomes das colunas, as linhas retornadas e metadados como tempo de execução, página, tamanho da página e quantidade de linhas retornadas naquela página.
+O valor `PAID` é enviado separadamente como parâmetro JDBC. A resposta contém os nomes das colunas, as linhas retornadas e metadados como tempo de execução, página, tamanho da página quantidade de linhas retornadas naquela página e `hasNext`, indicando se há uma próxima página. O SQL busca uma linha adicional para calcular esse indicador; ela não aparece na resposta.
 
 ## Dois modos de consulta
 
@@ -70,7 +70,7 @@ No modo direto, os identificadores e a estrutura da consulta são validados, mas
 
 ```mermaid
 flowchart TD
-    A["POST /api/query"] --> B["QueryParser: normaliza filtros e entrada"]
+    A["POST /api/query ou /api/query/preview"] --> B["QueryParser: normaliza filtros e entrada"]
     B --> C["QueryValidator: exige dataset OU table"]
     C --> D{"Modo de consulta"}
     D -->|dataset| E["DatasetQueryValidator"]
@@ -83,7 +83,9 @@ flowchart TD
     H -->|table| K["DirectSqlTranslator"]
     J --> L["SQL + parâmetros"]
     K --> L
-    L --> M["Executor já resolvido → JDBC"]
+    L --> O{"Operação"}
+    O -->|preview| P["SQL, dialeto e metadados sem valores"]
+    O -->|execute| M["Executor já resolvido → JDBC"]
     M --> N["Colunas, linhas e metadados"]
 ```
 
@@ -112,9 +114,12 @@ Na aplicação demo, a configuração da conexão é resolvida uma vez por consu
 
 ## Recursos implementados
 
-- Filtros simples e grupos aninhados com `AND` e `OR`.
+- Filtros simples e grupos aninhados com `AND` e `OR`, incluindo `IS NULL` e `IS NOT NULL`.
+- Descoberta de datasets, campos, tipos e operações pela API.
+- Prévia do SQL gerado, sem executar a consulta nem expor valores dos parâmetros.
 - Agregações `COUNT`, `SUM`, `AVG`, `MIN` e `MAX`.
-- Agrupamento, ordenação e paginação, com até 500 linhas por página.
+- Filtros `NOT IN`, seleção de linhas distintas com `DISTINCT` e filtros de agregações com `HAVING`.
+- Agrupamento, ordenação e paginação com `hasNext`, retornando até 500 linhas por página.
 - Catálogo de datasets com campos lógicos, tipos e relações.
 - Consultas diretas com joins, expressões e `EXISTS`.
 - Dialetos SQL para PostgreSQL, MySQL e Oracle.
@@ -122,6 +127,50 @@ Na aplicação demo, a configuração da conexão é resolvida uma vez por consu
 - Cadastro de conexões com campos de configuração criptografados usando AES-GCM.
 - Renovação do cache de datasources quando a configuração de uma conexão muda.
 - Testes unitários e de integração com H2, incluindo o pipeline JSON → engine → JDBC e a configuração Spring.
+
+## Explorar o engine pela API
+
+| Endpoint | Função |
+| --- | --- |
+| `GET /api/datasets` | Lista os datasets cadastrados. |
+| `GET /api/datasets/{name}` | Descreve campos lógicos, tipos, filtros, ordenação e operações de agregação disponíveis. |
+| `POST /api/query/preview` | Valida e traduz uma consulta, retornando SQL, dialeto e metadados dos parâmetros, sem seus valores. |
+| `POST /api/query` | Executa a consulta e retorna os dados. |
+
+A prévia usa o mesmo contrato JSON da execução. Para filtrar valores ausentes,
+use `{"field":"country","operator":"is null"}`; para valores presentes, use
+`is not null`. Esses operadores dispensam `value`.
+
+A descoberta descreve o catálogo do Atlas. A prévia não executa o SELECT no banco
+de destino, mas pode consultar o cadastro de conexões para resolver o dialeto.
+Veja [exemplos completos e contratos](atlas-query-engine/README.md#previa-de-sql).
+
+## Consultas para relatórios
+
+O campo `filters` filtra registros antes da agregação (WHERE). `having` filtra
+os resultados agregados, referenciando aliases declarados em `metrics`:
+
+```json
+{
+  "dataset": "orders",
+  "select": ["country"],
+  "filters": {"field":"status","operator":"not in","value":["CANCELLED"]},
+  "metrics": [{"field":"amount","operation":"sum","alias":"totalAmount"}],
+  "groupBy": ["country"],
+  "having": {"field":"totalAmount","operator":">","value":1000},
+  "sort": [{"field":"country","direction":"asc"}],
+  "page": 1,
+  "pageSize": 10
+}
+```
+
+Para eliminar linhas repetidas da seleção, use `"distinct": true`. A resposta
+inclui `metadata.hasNext`, calculado buscando uma linha extra sem executar uma
+contagem total. A prévia exibe esse limite interno adicional; o cliente recebe
+no máximo `pageSize` linhas. Informe uma ordenação com desempate único ao navegar
+entre páginas.
+
+Veja as [regras e exemplos completos](atlas-query-engine/README.md#not-in-distinct-having-e-paginacao).
 
 ## Tecnologias
 

@@ -24,6 +24,12 @@ public class InMemoryDatasetCatalog implements DatasetCatalog {
     }
 
     @Override
+    public List<DatasetDefinition> findAll() {
+        return datasets.values().stream()
+                .sorted(java.util.Comparator.comparing(DatasetDefinition::getName)).toList();
+    }
+
+    @Override
     public Optional<DatasetDefinition> findByName(String datasetName) {
         return Optional.ofNullable(datasets.get(datasetName));
     }
